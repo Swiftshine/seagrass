@@ -30,34 +30,53 @@ Block = {
 }
 
 FunctionDefinition = {
-    KeywordFn ~ Identifier ~ LParen ~ RParen ~ Block
+    KeywordFn ~ Identifier ~ LParen ~ ParameterList? ~ RParen ~ Block
 }
 
 FunctionCall = {
-    Identifier ~ LParen ~ RParen
+    QualifiedIdentifier ~ LParen ~ ArgumentList? ~ RParen
 }
 
-// Operators
-Equals = { "=" }
+ParameterList = { // only allowing our defined data types for now
+    Parameter ~ (Comma ~ Parameter)*
+}
 
-// Tokens
-LBrace = { "{" }
-RBrace = { "}" }
-LParen = { "(" }
-RParen = { ")" }
+Parameter = {
+    Identifier ~ Colon ~ DataType
+}
+
+ArgumentList = {
+    Expression ~ (Comma ~ Expression)*
+}
+
+// Operators and tokens
+Comma  = _{ "," }
+Equals = _{ "=" }
+Colon  = _{ ":" }
+ScopeResolution = _{ "::" }
+LBrace = _{ "{" }
+RBrace = _{ "}" }
+LParen = _{ "(" }
+RParen = _{ ")" }
 
 Identifier = @{
     (ASCII_ALPHA | "_") ~
     (ASCII_ALPHANUMERIC | "_")*
 }
 
+QualifiedIdentifier = @{
+    Identifier ~ (ScopeResolution ~ Identifier)*
+}
+
 DataType = {
     "u32" | "s32"
 }
 
-Integer = @{ ASCII_DIGIT+ }
+TypeAnnotation = {
+    Colon ~ DataType
+}
 
-// Types of values
+Integer = @{ ASCII_DIGIT+ }
 
 Value = {
     Identifier |
@@ -71,8 +90,17 @@ Statement = {
     Expression ~ EOL
 }
 
+DeclarativeAssignment = {
+    KeywordLet ~ Identifier ~ TypeAnnotation? ~ Equals ~ Expression
+}
+
+Reassignment = {
+    Identifier ~ Equals ~ Expression
+}
+
 Assignment = {
-    KeywordLet? ~ Identifier ~ Equals ~ Expression
+    DeclarativeAssignment |
+    Reassignment
 }
 
 Return = {

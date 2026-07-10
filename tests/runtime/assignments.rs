@@ -5,7 +5,7 @@ use seagrass::core::{execute_source, runtime::RuntimeValue};
 pub fn declarative_assignment() -> Result<()> {
     let runtime = execute_source("let my_ident = 123;")?;
     let variable = runtime.get_variable("my_ident")?;
-    assert!(matches!(*variable, RuntimeValue::Integer(123)));
+    assert!(matches!(*variable, RuntimeValue::S32(123)));
     Ok(())
 }
 
@@ -18,6 +18,25 @@ pub fn reassignment() -> Result<()> {
 
     let runtime = execute_source(source)?;
     let variable = runtime.get_variable("my_ident")?;
-    assert!(matches!(*variable, RuntimeValue::Integer(456)));
+    assert!(matches!(*variable, RuntimeValue::S32(456)));
+    Ok(())
+}
+
+#[test]
+pub fn check_data_types() -> Result<()> {
+    let source = "
+        let unsigned: u32 = 1;
+        let signed: s32 = 2;
+        let implicitly_signed = 3;
+    ";
+
+    let runtime = execute_source(source)?;
+    let first = runtime.get_variable("unsigned")?;
+    let second = runtime.get_variable("signed")?;
+    let third = runtime.get_variable("implicitly_signed")?;
+
+    assert!(matches!(*first, RuntimeValue::U32(1)));
+    assert!(matches!(*second, RuntimeValue::S32(2)));
+    assert!(matches!(*third, RuntimeValue::S32(3)));
     Ok(())
 }

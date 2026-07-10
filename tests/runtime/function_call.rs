@@ -11,7 +11,7 @@ pub fn check_main() -> Result<()> {
 
     let runtime = execute_source(source)?;
     let variable = runtime.get_variable("my_ident")?;
-    assert!(matches!(*variable, RuntimeValue::Integer(123)));
+    assert!(matches!(*variable, RuntimeValue::S32(123)));
     Ok(())
 }
 
@@ -29,6 +29,6 @@ pub fn return_value() -> Result<()> {
 
     let runtime = execute_source(source)?;
     let variable = runtime.get_variable("my_ident")?;
-    assert!(matches!(*variable, RuntimeValue::Integer(123)));
+    assert!(matches!(*variable, RuntimeValue::S32(123)));
     Ok(())
 }

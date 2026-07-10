@@ -1,13 +1,22 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use crate::core::lang::ast::{
-    Assignment, Block, Expression, FunctionDefinition, Program, Return, Statement, Value,
+    Assignment, Block, DataType, Expression, FunctionDefinition, Program, Return, Statement, Value,
 };
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
     None,
-    Integer(i64),
+    U32(u32),
+    S32(i32),
+}
+
+pub type NativeFunction = fn(Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>;
+
+#[derive(Debug, Clone)]
+pub enum RuntimeFunction {
+    Native(NativeFunction),
+    User(Rc<FunctionDefinition>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -16,6 +25,12 @@ pub enum RuntimeError {
     VariableNotFound(String),
     #[error("Function {0} not defined")]
     FunctionNotFound(String),
+    #[error("Function {0} is not a user-defined function")]
+    NotAUserDefinedFunction(String),
+    #[error("Function {0} is not a native function")]
+    NotANativeFunction(String),
+    #[error("Type mismatch")]
+    TypeMismatch,
 }
 
 #[derive(Debug, PartialEq)]
@@ -30,7 +45,7 @@ pub type StatementResult = Result<ControlFlow, RuntimeError>;
 #[derive(Debug)]
 pub struct Runtime {
     variables: HashMap<String, RuntimeValue>,
-    functions: HashMap<String, FunctionDefinition>,
+    functions: HashMap<String, RuntimeFunction>,
 }
 
 impl Runtime {
@@ -45,8 +60,12 @@ impl Runtime {
         &self.variables
     }
 
-    pub fn functions(&self) -> &HashMap<String, FunctionDefinition> {
+    pub fn functions(&self) -> &HashMap<String, RuntimeFunction> {
         &self.functions
+    }
+
+    pub fn functions_mut(&mut self) -> &mut HashMap<String, RuntimeFunction> {
+        &mut self.functions
     }
 
     pub fn get_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeValue> {
@@ -55,19 +74,56 @@ impl Runtime {
             .ok_or(RuntimeError::VariableNotFound(identifier.to_string()))
     }
 
-    pub fn get_function(&self, identifier: &str) -> RuntimeResult<&FunctionDefinition> {
+    pub fn get_function(&self, identifier: &str) -> RuntimeResult<&RuntimeFunction> {
         self.functions()
             .get(identifier)
             .ok_or(RuntimeError::FunctionNotFound(identifier.to_string()))
     }
 
+    pub fn get_user_function(&self, identifier: &str) -> RuntimeResult<&FunctionDefinition> {
+        match self.get_function(identifier)? {
+            RuntimeFunction::User(func) => Ok(func),
+
+            RuntimeFunction::Native(_) => Err(RuntimeError::NotAUserDefinedFunction(
+                identifier.to_string(),
+            )),
+        }
+    }
+
+    pub fn get_native_function(
+        &self,
+        identifier: &str,
+    ) -> RuntimeResult<fn(Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>> {
+        match self.get_function(identifier)? {
+            RuntimeFunction::Native(func) => Ok(*func),
+
+            RuntimeFunction::User(_) => {
+                Err(RuntimeError::NotANativeFunction(identifier.to_string()))
+            }
+        }
+    }
+
     pub fn execute(&mut self, program: &Program) -> RuntimeResult<()> {
+        // collect sg:: functions
+        self.register_native_functions();
+
+        // collect function definitions
         for statement in &program.statements {
-            self.execute_statement(statement)?;
+            if let Statement::FunctionDefinition(func) = statement {
+                self.define_function(func)?;
+            }
         }
 
+        // execute normal statements
+        for statement in &program.statements {
+            if !matches!(statement, Statement::FunctionDefinition(_)) {
+                self.execute_statement(statement)?;
+            }
+        }
+
+        // call main()
         if self.get_function("main").is_ok() {
-            self.call_function("main")?;
+            self.call_function("main", vec![])?;
         }
 
         Ok(())
@@ -89,7 +145,11 @@ impl Runtime {
     }
 
     fn execute_assignment(&mut self, assignment: &Assignment) -> StatementResult {
-        let value = self.evaluate_expression(&assignment.expression)?;
+        let mut value = self.evaluate_expression(&assignment.expression)?;
+
+        if let Some(expected_type) = &assignment.data_type {
+            value = self.apply_type_annotation(value, expected_type)?;
+        }
 
         let ident = assignment.identifier.clone();
 
@@ -109,6 +169,21 @@ impl Runtime {
         Ok(ControlFlow::Continue)
     }
 
+    fn apply_type_annotation(
+        &self,
+        value: RuntimeValue,
+        expected: &DataType,
+    ) -> RuntimeResult<RuntimeValue> {
+        match (value, expected) {
+            (RuntimeValue::S32(i), DataType::S32) => Ok(RuntimeValue::S32(i)),
+
+            (RuntimeValue::U32(i), DataType::U32) => Ok(RuntimeValue::U32(i)),
+
+            (RuntimeValue::S32(i), DataType::U32) if i >= 0 => Ok(RuntimeValue::U32(i as u32)),
+
+            _ => Err(RuntimeError::TypeMismatch),
+        }
+    }
     fn execute_return(&mut self, ret: &Return) -> StatementResult {
         let value = self.evaluate_expression(&ret.expression)?;
         Ok(ControlFlow::Return(value))
@@ -125,34 +200,55 @@ impl Runtime {
     }
 
     fn define_function(&mut self, func: &FunctionDefinition) -> StatementResult {
-        self.functions.insert(func.identifier.clone(), func.clone());
+        self.functions.insert(
+            func.identifier.clone(),
+            RuntimeFunction::User(Rc::new(func.clone())),
+        );
+
         Ok(ControlFlow::Continue)
     }
 
-    fn call_function(&mut self, identifier: &str) -> RuntimeResult<RuntimeValue> {
+    fn call_function(
+        &mut self,
+        identifier: &str,
+        args: Vec<RuntimeValue>,
+    ) -> RuntimeResult<RuntimeValue> {
         let func = self
             .functions
             .get(identifier)
             .cloned()
             .ok_or(RuntimeError::FunctionNotFound(identifier.to_string()))?;
 
-        match self.execute_block(&func.body)? {
-            ControlFlow::Continue => Ok(RuntimeValue::None),
+        match func {
+            RuntimeFunction::Native(native) => native(args),
 
-            ControlFlow::Return(value) => Ok(value),
+            RuntimeFunction::User(func) => match self.execute_block(&func.body)? {
+                ControlFlow::Continue => Ok(RuntimeValue::None),
+                ControlFlow::Return(value) => Ok(value),
+            },
         }
     }
 
     fn evaluate_expression(&mut self, expression: &Expression) -> RuntimeResult<RuntimeValue> {
         match expression {
             Expression::Value(value) => self.resolve_value(value),
-            Expression::FunctionCall(function) => self.call_function(&function.identifier),
+            Expression::FunctionCall(call) => {
+                let args = call
+                    .arguments
+                    .iter()
+                    .map(|expr| self.evaluate_expression(expr))
+                    .collect::<RuntimeResult<Vec<_>>>()?;
+
+                self.call_function(&call.identifier, args)
+            }
         }
     }
 
     fn resolve_value(&self, value: &Value) -> RuntimeResult<RuntimeValue> {
         match value {
-            Value::Integer(i) => Ok(RuntimeValue::Integer(*i)),
+            Value::S32(i) => Ok(RuntimeValue::S32(*i)),
+
+            Value::U32(i) => Ok(RuntimeValue::U32(*i)),
 
             Value::Identifier(name) => self
                 .variables

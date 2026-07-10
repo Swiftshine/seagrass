@@ -4,6 +4,7 @@ use crate::core::{
 };
 
 pub mod lang;
+pub mod native;
 pub mod runtime;
 
 fn execute_program(program: &Program) -> Runtime {

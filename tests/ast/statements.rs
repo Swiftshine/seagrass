@@ -10,8 +10,9 @@ pub fn let_assignment() {
         Program {
             statements: vec![Statement::Assignment(Assignment {
                 declarative: true,
+                data_type: None,
                 identifier: "x".into(),
-                expression: Expression::Value(Value::Integer(42)),
+                expression: Expression::Value(Value::S32(42)),
             })]
         }
     );

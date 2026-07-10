@@ -33,6 +33,7 @@ pub enum Expression {
 pub struct Assignment {
     pub declarative: bool,
     pub identifier: String,
+    pub data_type: Option<DataType>,
     pub expression: Expression,
 }
 
@@ -49,26 +50,40 @@ pub struct Block {
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionCall {
     pub identifier: String,
+    pub arguments: Vec<Expression>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
-    Integer(i64),
+    S32(i32),
+    U32(u32),
     Identifier(String),
 }
 
-// pub fn dump(pair: Pair<Rule>, indent: usize) {
-//     println!(
-//         "{}{:?}: {:?}",
-//         "  ".repeat(indent),
-//         pair.as_rule(),
-//         pair.as_str()
-//     );
+#[derive(Debug, PartialEq, Clone)]
+pub struct Parameter {
+    pub identifier: String,
+    pub data_type: DataType,
+}
 
-//     for child in pair.into_inner() {
-//         dump(child, indent + 1);
-//     }
-// }
+#[derive(Debug, PartialEq, Clone)]
+pub enum DataType {
+    U32,
+    S32,
+}
+
+pub fn dump(pair: Pair<Rule>, indent: usize) {
+    println!(
+        "{}{:?}: {:?}",
+        "  ".repeat(indent),
+        pair.as_rule(),
+        pair.as_str()
+    );
+
+    for child in pair.into_inner() {
+        dump(child, indent + 1);
+    }
+}
 
 pub fn build_program(pair: Pair<Rule>) -> Result<Program> {
     assert_eq!(pair.as_rule(), Rule::Program);
@@ -100,27 +115,61 @@ fn build_statement(pair: Pair<Rule>) -> Result<Statement> {
 }
 
 fn build_assignment(pair: Pair<Rule>) -> Result<Assignment> {
-    let mut inner = pair.into_inner().peekable();
+    assert_eq!(pair.as_rule(), Rule::Assignment);
 
-    // KeywordLet?
-    let declarative = matches!(inner.peek().map(|p| p.as_rule()), Some(Rule::KeywordLet));
+    let inner = pair.into_inner().next().unwrap();
 
-    if declarative {
-        inner.next();
+    match inner.as_rule() {
+        Rule::DeclarativeAssignment => build_declarative_assignment(inner),
+        Rule::Reassignment => build_reassignment(inner),
+        _ => unreachable!("{:?}", inner),
     }
+}
+
+fn build_type_annotation(pair: Pair<Rule>) -> Result<DataType> {
+    assert_eq!(pair.as_rule(), Rule::TypeAnnotation);
+    build_data_type(pair.into_inner().next().unwrap())
+}
+
+fn build_declarative_assignment(pair: Pair<Rule>) -> Result<Assignment> {
+    let mut inner = pair.into_inner();
+
+    // KeywordLet
+    inner.next();
 
     // Identifier
     let identifier = inner.next().unwrap().as_str().to_string();
 
-    // Equals
-    inner.next();
+    // TypeAnnotation?
+    let data_type = match inner.peek().map(|p| p.as_rule()) {
+        Some(Rule::TypeAnnotation) => Some(build_type_annotation(inner.next().unwrap())?),
+        _ => None,
+    };
 
     // Expression
     let expression = build_expression(inner.next().unwrap())?;
 
     Ok(Assignment {
-        declarative,
+        declarative: true,
         identifier,
+        data_type,
+        expression,
+    })
+}
+
+fn build_reassignment(pair: Pair<Rule>) -> Result<Assignment> {
+    let mut inner = pair.into_inner();
+
+    // Identifier
+    let identifier = inner.next().unwrap().as_str().to_string();
+
+    // Expression
+    let expression = build_expression(inner.next().unwrap())?;
+
+    Ok(Assignment {
+        declarative: false,
+        identifier,
+        data_type: None,
         expression,
     })
 }
@@ -147,10 +196,6 @@ fn build_function_definition(pair: Pair<Rule>) -> Result<FunctionDefinition> {
 
     // Identifier
     let identifier = inner.next().unwrap().as_str().to_string();
-
-    // L and R parens
-    inner.next();
-    inner.next();
 
     let body = build_block(inner.next().unwrap())?;
 
@@ -191,9 +236,17 @@ fn build_value(pair: Pair<Rule>) -> Result<Value> {
     match inner.as_rule() {
         Rule::Identifier => Ok(Value::Identifier(inner.as_str().to_string())),
 
-        Rule::Integer => Ok(Value::Integer(inner.as_str().parse()?)),
+        Rule::Integer => Ok(Value::S32(inner.as_str().parse()?)),
 
         _ => unreachable!("{:?}", inner.as_rule()),
+    }
+}
+
+fn build_data_type(pair: Pair<Rule>) -> Result<DataType> {
+    match pair.as_str() {
+        "u32" => Ok(DataType::U32),
+        "s32" => Ok(DataType::S32),
+        _ => unreachable!("{:?}", pair),
     }
 }
 
@@ -202,12 +255,25 @@ fn build_function_call(pair: Pair<Rule>) -> Result<FunctionCall> {
 
     let mut inner = pair.into_inner();
 
-    // Identifier
+    // QualifiedIdentifier
     let identifier = inner.next().unwrap().as_str().to_string();
 
-    // L and R parens
-    inner.next();
-    inner.next();
+    // ArgumentList?
+    let arguments = match inner.next() {
+        Some(pair) if pair.as_rule() == Rule::ArgumentList => build_argument_list(pair)?,
 
-    Ok(FunctionCall { identifier })
+        // empty args
+        _ => Vec::new(),
+    };
+
+    Ok(FunctionCall {
+        identifier,
+        arguments,
+    })
+}
+
+fn build_argument_list(pair: Pair<Rule>) -> Result<Vec<Expression>> {
+    assert_eq!(pair.as_rule(), Rule::ArgumentList);
+
+    pair.into_inner().map(build_expression).collect()
 }

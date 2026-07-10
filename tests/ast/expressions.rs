@@ -8,7 +8,7 @@ pub fn integer_expression() {
     assert_eq!(program.statements.len(), 1);
 
     match &program.statements[0] {
-        Statement::Expression(Expression::Value(Value::Integer(value))) => {
+        Statement::Expression(Expression::Value(Value::S32(value))) => {
             assert_eq!(*value, 123);
         }
 
