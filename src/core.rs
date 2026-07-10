@@ -8,7 +8,7 @@ pub mod runtime;
 
 fn execute_program(program: &Program) -> Runtime {
     let mut runtime = Runtime::new();
-    runtime.execute(program);
+    let _ = runtime.execute(program);
     runtime
 }
 

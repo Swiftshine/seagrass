@@ -2,7 +2,7 @@ use anyhow::Result;
 use seagrass::core::{execute_source, runtime::RuntimeValue};
 
 #[test]
-fn declarative_assignment() -> Result<()> {
+pub fn declarative_assignment() -> Result<()> {
     let runtime = execute_source("let my_ident = 123;")?;
     let variable = runtime.get_variable("my_ident")?;
     assert!(matches!(*variable, RuntimeValue::Integer(123)));
@@ -10,7 +10,7 @@ fn declarative_assignment() -> Result<()> {
 }
 
 #[test]
-fn reassignment() -> Result<()> {
+pub fn reassignment() -> Result<()> {
     let source = "
         let my_ident = 123;
         my_ident = 456;

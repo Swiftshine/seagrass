@@ -13,12 +13,38 @@ Program = {
     EOI
 }
 // Keywords
-Keyword = { KeywordLet | KeywordReturn }
+Keyword = {
+    KeywordFn |
+    KeywordLet |
+    KeywordReturn
+}
+KeywordFn = @{ "fn" ~ KeywordBoundary }
 KeywordLet = @{ "let" ~ KeywordBoundary }
 KeywordReturn = @{ "return" ~ KeywordBoundary }
 
+// Execution
+Block = {
+    LBrace ~
+    Statement* ~
+    RBrace
+}
+
+FunctionDefinition = {
+    KeywordFn ~ Identifier ~ LParen ~ RParen ~ Block
+}
+
+FunctionCall = {
+    Identifier ~ LParen ~ RParen
+}
+
 // Operators
 Equals = { "=" }
+
+// Tokens
+LBrace = { "{" }
+RBrace = { "}" }
+LParen = { "(" }
+RParen = { ")" }
 
 Identifier = @{
     (ASCII_ALPHA | "_") ~
@@ -39,8 +65,9 @@ Value = {
 }
 
 Statement = {
+    FunctionDefinition |
     Assignment ~ EOL |
-    // Return ~ EOL |
+    Return ~ EOL |
     Expression ~ EOL
 }
 
@@ -48,10 +75,11 @@ Assignment = {
     KeywordLet? ~ Identifier ~ Equals ~ Expression
 }
 
-// Return = {
-//     KeywordReturn ~ Expression
-// }
+Return = {
+    KeywordReturn ~ Expression
+}
 
 Expression = {
+    FunctionCall |
     Value
 }

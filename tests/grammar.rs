@@ -2,9 +2,9 @@ use pest::Parser;
 use pest::iterators::Pair;
 use seagrass::core::lang::parser::{Rule, SGParser};
 
-mod grammar {
-    mod expressions;
-    mod statements;
+pub mod grammar {
+    pub mod expressions;
+    pub mod statements;
 }
 
 pub fn parse(rule: Rule, input: &str) -> Pair<'_, Rule> {

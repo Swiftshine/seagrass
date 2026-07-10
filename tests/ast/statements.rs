@@ -2,7 +2,7 @@ use crate::parse_program;
 use seagrass::core::lang::ast::{Assignment, Expression, Program, Statement, Value};
 
 #[test]
-fn let_assignment() {
+pub fn let_assignment() {
     let program = parse_program("let x = 42;");
 
     assert_eq!(
@@ -18,7 +18,7 @@ fn let_assignment() {
 }
 
 #[test]
-fn reassignment() {
+pub fn reassignment() {
     let program = parse_program("x = 10;");
 
     match &program.statements[0] {
