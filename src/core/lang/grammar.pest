@@ -1,0 +1,57 @@
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+EOL = _{ ";" }
+NEWLINE = _{ "\n" | "\r\n" }
+COMMENT = _{
+    "//" ~
+    (!NEWLINE ~ ANY)*
+}
+KeywordBoundary = _{ !(ASCII_ALPHANUMERIC | "_") }
+
+Program = {
+    SOI ~
+    Statement* ~
+    EOI
+}
+// Keywords
+Keyword = { KeywordLet | KeywordReturn }
+KeywordLet = @{ "let" ~ KeywordBoundary }
+KeywordReturn = @{ "return" ~ KeywordBoundary }
+
+// Operators
+Equals = { "=" }
+
+Identifier = @{
+    (ASCII_ALPHA | "_") ~
+    (ASCII_ALPHANUMERIC | "_")*
+}
+
+DataType = {
+    "u32" | "s32"
+}
+
+Integer = @{ ASCII_DIGIT+ }
+
+// Types of values
+
+Value = {
+    Identifier |
+    Integer
+}
+
+Statement = {
+    Assignment ~ EOL |
+    // Return ~ EOL |
+    Expression ~ EOL
+}
+
+Assignment = {
+    KeywordLet? ~ Identifier ~ Equals ~ Expression
+}
+
+// Return = {
+//     KeywordReturn ~ Expression
+// }
+
+Expression = {
+    Value
+}
