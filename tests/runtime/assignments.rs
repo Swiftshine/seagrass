@@ -23,6 +23,20 @@ pub fn reassignment() -> Result<()> {
 }
 
 #[test]
+pub fn assignment_from_existing_value() -> Result<()> {
+    let source = "
+        let value1 = 123;
+        let value2 = value1;
+    ";
+
+    let runtime = execute_source(source)?;
+    let value1 = runtime.get_variable("value1")?;
+    let value2 = runtime.get_variable("value2")?;
+    assert_eq!(*value1, *value2);
+    Ok(())
+}
+
+#[test]
 pub fn check_data_types() -> Result<()> {
     let source = "
         let unsigned: u32 = 1;
