@@ -1,5 +1,8 @@
 use anyhow::Result;
-use seagrass::core::{execute_source, runtime::RuntimeValue};
+use seagrass::core::{
+    execute_source,
+    runtime::{RuntimeConfigOption, RuntimeValue},
+};
 
 #[test]
 pub fn check_main() -> Result<()> {
@@ -9,8 +12,8 @@ pub fn check_main() -> Result<()> {
         }
     ";
 
-    let runtime = execute_source(source)?;
-    let variable = runtime.get_variable("my_ident")?;
+    let runtime = execute_source(source, &[RuntimeConfigOption::PreserveScope(true)])?;
+    let variable = runtime.get_dead_variable("my_ident")?;
     assert!(matches!(*variable, RuntimeValue::S32(123)));
     Ok(())
 }
@@ -27,8 +30,8 @@ pub fn return_value() -> Result<()> {
         }
     ";
 
-    let runtime = execute_source(source)?;
-    let variable = runtime.get_variable("my_ident")?;
+    let runtime = execute_source(source, &vec![RuntimeConfigOption::PreserveScope(true)])?;
+    let variable = runtime.get_dead_variable("my_ident")?;
     assert!(matches!(*variable, RuntimeValue::S32(123)));
     Ok(())
 }

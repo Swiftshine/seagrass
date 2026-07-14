@@ -42,22 +42,153 @@ pub enum ControlFlow {
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 pub type StatementResult = Result<ControlFlow, RuntimeError>;
 
-#[derive(Debug)]
-pub struct Runtime {
-    variables: HashMap<String, RuntimeValue>,
-    functions: HashMap<String, RuntimeFunction>,
+#[derive(Debug, Clone, Default)]
+pub enum RuntimeScopeType {
+    #[default]
+    Global,
+    Block,
+    Function,
 }
 
-impl Runtime {
-    pub fn new() -> Self {
+#[derive(Debug, Clone)]
+pub struct RuntimeScope {
+    scope_type: RuntimeScopeType,
+    variables: HashMap<String, RuntimeValue>,
+}
+
+impl RuntimeScope {
+    pub fn new(scope_type: RuntimeScopeType) -> Self {
         Self {
+            scope_type,
             variables: HashMap::new(),
-            functions: HashMap::new(),
         }
     }
 
     pub fn variables(&self) -> &HashMap<String, RuntimeValue> {
         &self.variables
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum RuntimeConfigOption {
+    PreserveScope(bool),
+}
+
+#[derive(Debug, Default)]
+pub struct RuntimeConfig {
+    preserve_scopes: bool,
+}
+
+#[derive(Debug)]
+pub struct Runtime {
+    scopes: Vec<RuntimeScope>,
+    dead_scopes: Vec<RuntimeScope>,
+    functions: HashMap<String, RuntimeFunction>,
+    config: RuntimeConfig,
+}
+
+impl Runtime {
+    pub fn new() -> Self {
+        Self {
+            scopes: vec![RuntimeScope::new(RuntimeScopeType::Global)],
+            dead_scopes: Vec::new(),
+            functions: HashMap::new(),
+            config: RuntimeConfig::default(),
+        }
+    }
+
+    fn configure(&mut self, option: RuntimeConfigOption) {
+        match option {
+            RuntimeConfigOption::PreserveScope(should_preserve) => {
+                self.config.preserve_scopes = should_preserve;
+            }
+        }
+    }
+
+    pub fn with_config(mut self, option: RuntimeConfigOption) -> Runtime {
+        self.configure(option);
+        self
+    }
+
+    pub fn with_configs(mut self, options: &[RuntimeConfigOption]) -> Runtime {
+        for option in options {
+            self.configure(*option);
+        }
+
+        self
+    }
+
+    pub fn dead_scopes(&self) -> &[RuntimeScope] {
+        &self.dead_scopes
+    }
+
+    pub fn global_scope(&self) -> &RuntimeScope {
+        &self.scopes[0]
+    }
+
+    pub fn global_dead_scope(&self) -> &RuntimeScope {
+        &self.dead_scopes[0]
+    }
+
+    pub fn current_scope(&self) -> &RuntimeScope {
+        self.scopes.last().unwrap()
+    }
+
+    pub fn current_dead_scope(&self) -> &RuntimeScope {
+        self.dead_scopes.last().unwrap()
+    }
+
+    pub fn current_scope_mut(&mut self) -> &mut RuntimeScope {
+        self.scopes.last_mut().unwrap()
+    }
+
+    pub fn push_scope(&mut self, scope_type: RuntimeScopeType) {
+        self.scopes.push(RuntimeScope::new(scope_type));
+    }
+
+    pub fn pop_scope(&mut self) {
+        if self.scopes.len() > 1 {
+            let scope = self.scopes.pop().unwrap();
+
+            if self.config.preserve_scopes {
+                self.dead_scopes.push(scope);
+            }
+        }
+    }
+
+    pub fn get_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeValue> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(value) = scope.variables.get(identifier) {
+                return Ok(value);
+            }
+
+            if matches!(scope.scope_type, RuntimeScopeType::Function) {
+                // functions should not have access to the scope of other functions
+                break;
+            }
+        }
+
+        Err(RuntimeError::VariableNotFound(identifier.to_owned()))
+    }
+
+    pub fn get_dead_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeValue> {
+        for scope in self.dead_scopes.iter().rev() {
+            if let Some(value) = scope.variables.get(identifier) {
+                return Ok(value);
+            }
+        }
+
+        Err(RuntimeError::VariableNotFound(identifier.to_owned()))
+    }
+
+    pub fn get_variable_mut(&mut self, identifier: &str) -> RuntimeResult<&mut RuntimeValue> {
+        for scope in self.scopes.iter_mut().rev() {
+            if let Some(value) = scope.variables.get_mut(identifier) {
+                return Ok(value);
+            }
+        }
+
+        Err(RuntimeError::VariableNotFound(identifier.to_owned()))
     }
 
     pub fn functions(&self) -> &HashMap<String, RuntimeFunction> {
@@ -66,12 +197,6 @@ impl Runtime {
 
     pub fn functions_mut(&mut self) -> &mut HashMap<String, RuntimeFunction> {
         &mut self.functions
-    }
-
-    pub fn get_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeValue> {
-        self.variables()
-            .get(identifier)
-            .ok_or(RuntimeError::VariableNotFound(identifier.to_string()))
     }
 
     pub fn get_function(&self, identifier: &str) -> RuntimeResult<&RuntimeFunction> {
@@ -155,15 +280,10 @@ impl Runtime {
 
         if assignment.declarative {
             // create a new variable
-            self.variables.insert(ident, value);
+            self.current_scope_mut().variables.insert(ident, value);
         } else {
             // assign value to existing variable
-            let val = self
-                .variables
-                .get_mut(&ident)
-                .ok_or(RuntimeError::VariableNotFound(ident))?;
-
-            *val = value;
+            *self.get_variable_mut(&ident)? = value;
         }
 
         Ok(ControlFlow::Continue)
@@ -190,13 +310,22 @@ impl Runtime {
     }
 
     fn execute_block(&mut self, block: &Block) -> StatementResult {
-        for statement in &block.statements {
-            match self.execute_statement(statement)? {
-                ControlFlow::Continue => {}
-                flow @ ControlFlow::Return(_) => return Ok(flow),
+        self.push_scope(RuntimeScopeType::Block);
+
+        let result = (|| {
+            for statement in &block.statements {
+                match self.execute_statement(statement)? {
+                    ControlFlow::Continue => {}
+                    flow @ ControlFlow::Return(_) => return Ok(flow),
+                }
             }
-        }
-        Ok(ControlFlow::Continue)
+
+            Ok(ControlFlow::Continue)
+        })();
+
+        self.pop_scope();
+
+        result
     }
 
     fn define_function(&mut self, func: &FunctionDefinition) -> StatementResult {
@@ -222,10 +351,18 @@ impl Runtime {
         match func {
             RuntimeFunction::Native(native) => native(args),
 
-            RuntimeFunction::User(func) => match self.execute_block(&func.body)? {
-                ControlFlow::Continue => Ok(RuntimeValue::None),
-                ControlFlow::Return(value) => Ok(value),
-            },
+            RuntimeFunction::User(func) => {
+                self.push_scope(RuntimeScopeType::Function);
+
+                let result = self.execute_block(&func.body);
+
+                self.pop_scope();
+
+                match result? {
+                    ControlFlow::Continue => Ok(RuntimeValue::None),
+                    ControlFlow::Return(value) => Ok(value),
+                }
+            }
         }
     }
 
@@ -250,11 +387,7 @@ impl Runtime {
 
             Value::U32(i) => Ok(RuntimeValue::U32(*i)),
 
-            Value::Identifier(name) => self
-                .variables
-                .get(name)
-                .cloned()
-                .ok_or(RuntimeError::VariableNotFound(name.clone())),
+            Value::Identifier(name) => self.get_variable(name).cloned(),
         }
     }
 }
