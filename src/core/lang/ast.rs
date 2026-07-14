@@ -317,7 +317,19 @@ fn build_value(pair: Pair<Rule>) -> Result<Value> {
     match inner.as_rule() {
         Rule::Identifier => Ok(Value::Identifier(inner.as_str().to_string())),
 
-        Rule::Integer => Ok(Value::S32(inner.as_str().parse()?)),
+        Rule::Integer => {
+            let s = inner.as_str();
+
+            let value = if let Some(hex) = s.strip_prefix("0x") {
+                i32::from_str_radix(hex, 16)?
+            } else if let Some(hex) = s.strip_prefix("0X") {
+                i32::from_str_radix(hex, 16)?
+            } else {
+                s.parse()?
+            };
+
+            Ok(Value::S32(value))
+        }
 
         _ => unreachable!("{:?}", inner.as_rule()),
     }

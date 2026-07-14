@@ -80,7 +80,13 @@ TypeAnnotation = {
     Colon ~ DataType
 }
 
-Integer = @{ ASCII_DIGIT+ }
+Integer = @{
+    HexadecimalInteger |
+    DecimalInteger
+}
+
+HexadecimalInteger = @{ ("0x" | "0X") ~ ASCII_HEX_DIGIT+ }
+DecimalInteger = @{ ASCII_DIGIT+ }
 
 Value = {
     Identifier |
