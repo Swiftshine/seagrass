@@ -1,3 +1,8 @@
+mod data_types;
+use std::fmt::{self, Display};
+
+use data_types::*;
+
 use crate::core::lang::parser::Rule;
 use anyhow::Result;
 use pest::iterators::Pair;
@@ -42,6 +47,19 @@ pub enum BinaryOperator {
     Divide,
 }
 
+impl Display for BinaryOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let symbol = match self {
+            Self::Add => "+",
+            Self::Subtract => "-",
+            Self::Multiply => "*",
+            Self::Divide => "/",
+        };
+
+        write!(f, "{symbol}")
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Assignment {
     pub declarative: bool,
@@ -70,6 +88,7 @@ pub struct FunctionCall {
 pub enum Value {
     S32(i32),
     U32(u32),
+    String(String),
     Identifier(String),
 }
 
@@ -83,6 +102,7 @@ pub struct Parameter {
 pub enum DataType {
     U32,
     S32,
+    String,
 }
 
 pub fn dump(pair: Pair<Rule>, indent: usize) {
@@ -307,40 +327,6 @@ fn build_return(pair: Pair<Rule>) -> Result<Return> {
     let expression = build_expression(inner.next().unwrap())?;
 
     Ok(Return { expression })
-}
-
-fn build_value(pair: Pair<Rule>) -> Result<Value> {
-    assert_eq!(pair.as_rule(), Rule::Value);
-
-    let inner = pair.into_inner().next().unwrap();
-
-    match inner.as_rule() {
-        Rule::Identifier => Ok(Value::Identifier(inner.as_str().to_string())),
-
-        Rule::Integer => {
-            let s = inner.as_str();
-
-            let value = if let Some(hex) = s.strip_prefix("0x") {
-                i32::from_str_radix(hex, 16)?
-            } else if let Some(hex) = s.strip_prefix("0X") {
-                i32::from_str_radix(hex, 16)?
-            } else {
-                s.parse()?
-            };
-
-            Ok(Value::S32(value))
-        }
-
-        _ => unreachable!("{:?}", inner.as_rule()),
-    }
-}
-
-fn build_data_type(pair: Pair<Rule>) -> Result<DataType> {
-    match pair.as_str() {
-        "u32" => Ok(DataType::U32),
-        "s32" => Ok(DataType::S32),
-        _ => unreachable!("{:?}", pair),
-    }
 }
 
 fn build_function_call(pair: Pair<Rule>) -> Result<FunctionCall> {

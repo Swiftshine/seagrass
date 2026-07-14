@@ -12,6 +12,18 @@ pub enum RuntimeValue {
     None,
     U32(u32),
     S32(i32),
+    String(String),
+}
+
+impl RuntimeValue {
+    pub fn data_type(&self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::U32(_) => "u32",
+            Self::S32(_) => "s32",
+            Self::String(_) => "string",
+        }
+    }
 }
 
 pub type NativeFunction = fn(Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>;
@@ -24,18 +36,38 @@ pub enum RuntimeFunction {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
-    #[error("Variable {0} not defined")]
+    #[error("Variable '{0}' not defined")]
     VariableNotFound(String),
-    #[error("Function {0} not defined")]
+    #[error("Function '{0}' not defined")]
     FunctionNotFound(String),
-    #[error("Function {0} is not a user-defined function")]
+    #[error("Function '{0}' is not a user-defined function")]
     NotAUserDefinedFunction(String),
-    #[error("Function {0} is not a native function")]
+    #[error("Function '{0}' is not a native function")]
     NotANativeFunction(String),
-    #[error("Function {0} not in call stack")]
+    #[error("Function '{0}' not in call stack")]
     FunctionNotInCallStack(String),
+    #[error("Unsupported binary operation for '[{lhs_type}] {operation} [{rhs_type}]'")]
+    UnsupportedBinaryOperation {
+        lhs_type: &'static str,
+        operation: &'static str,
+        rhs_type: &'static str,
+    },
     #[error("Type mismatch")]
     TypeMismatch,
+}
+
+impl RuntimeError {
+    pub fn unsupported_binary_operation(
+        lhs_type: &'static str,
+        operation: &'static str,
+        rhs_type: &'static str,
+    ) -> Self {
+        Self::UnsupportedBinaryOperation {
+            lhs_type,
+            operation,
+            rhs_type,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -508,6 +540,8 @@ impl Runtime {
             Value::S32(i) => Ok(RuntimeValue::S32(*i)),
 
             Value::U32(i) => Ok(RuntimeValue::U32(*i)),
+
+            Value::String(string) => Ok(RuntimeValue::String(string.clone())),
 
             Value::Identifier(name) => self.get_variable(name).cloned(),
         }

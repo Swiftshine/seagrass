@@ -68,12 +68,12 @@ Identifier = @{
     (ASCII_ALPHANUMERIC | "_")*
 }
 
-QualifiedIdentifier = @{
+QualifiedIdentifier = {
     Identifier ~ (ScopeResolution ~ Identifier)*
 }
 
 DataType = {
-    "u32" | "s32"
+    "u32" | "s32" | "string"
 }
 
 TypeAnnotation = {
@@ -88,9 +88,29 @@ Integer = @{
 HexadecimalInteger = @{ ("0x" | "0X") ~ ASCII_HEX_DIGIT+ }
 DecimalInteger = @{ ASCII_DIGIT+ }
 
+String = @{
+    "\"" ~ StringCharacter* ~ "\""
+}
+
+StringCharacter = {
+    EscapeSequence |
+    !("\"" | "\\") ~ ANY
+}
+
+EscapeSequence = {
+    "\\" ~ (
+        "\"" |
+        "\\" |
+        "n" |
+        "r" |
+        "t"
+    )
+}
+
 Value = {
     Identifier |
-    Integer
+    Integer |
+    String
 }
 
 Statement = {

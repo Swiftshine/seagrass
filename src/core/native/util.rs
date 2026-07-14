@@ -10,6 +10,7 @@ pub(crate) mod sg {
             match value {
                 RuntimeValue::U32(i) => print!("u32: {i}"),
                 RuntimeValue::S32(i) => print!("s32: {i}"),
+                RuntimeValue::String(string) => print!("string: {string}"),
                 RuntimeValue::None => {}
             }
         }
