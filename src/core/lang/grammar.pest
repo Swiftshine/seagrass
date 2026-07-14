@@ -50,6 +50,10 @@ ArgumentList = {
 }
 
 // Operators and tokens
+Plus   =  { "+" }
+Minus  =  { "-" }
+Star   =  { "*" }
+Slash  =  { "/" }
 Comma  = _{ "," }
 Equals = _{ "=" }
 Colon  = _{ ":" }
@@ -108,6 +112,31 @@ Return = {
 }
 
 Expression = {
+    Addition
+}
+
+Addition = {
+    Multiplication ~ (AddOp ~ Multiplication)*
+}
+
+AddOp = _{
+    Plus | Minus
+}
+
+Multiplication = {
+    Unary ~ (MulOp ~ Unary)*
+}
+
+MulOp = _{
+    Star | Slash
+}
+
+Unary = {
+    Primary
+}
+
+Primary = {
     FunctionCall |
-    Value
+    Value |
+    LParen ~ Expression ~ RParen
 }

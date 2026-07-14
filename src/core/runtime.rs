@@ -1,7 +1,10 @@
+mod operators;
+
 use std::{collections::HashMap, rc::Rc};
 
 use crate::core::lang::ast::{
-    Assignment, Block, DataType, Expression, FunctionDefinition, Program, Return, Statement, Value,
+    Assignment, BinaryOperator, Block, DataType, Expression, FunctionDefinition, Program, Return,
+    Statement, Value,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -476,6 +479,27 @@ impl Runtime {
 
                 self.call_function(&call.identifier, args)
             }
+
+            Expression::Binary { lhs, rhs, operator } => {
+                let lhs = self.evaluate_expression(lhs)?;
+                let rhs = self.evaluate_expression(rhs)?;
+
+                self.evaluate_binary(*operator, lhs, rhs)
+            }
+        }
+    }
+
+    fn evaluate_binary(
+        &self,
+        operator: BinaryOperator,
+        lhs: RuntimeValue,
+        rhs: RuntimeValue,
+    ) -> RuntimeResult<RuntimeValue> {
+        match operator {
+            BinaryOperator::Add => lhs.add(rhs),
+            BinaryOperator::Subtract => lhs.subtract(rhs),
+            BinaryOperator::Multiply => lhs.multiply(rhs),
+            BinaryOperator::Divide => lhs.divide(rhs),
         }
     }
 

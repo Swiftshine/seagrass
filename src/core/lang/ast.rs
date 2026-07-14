@@ -27,6 +27,19 @@ pub struct FunctionDefinition {
 pub enum Expression {
     Value(Value),
     FunctionCall(FunctionCall),
+    Binary {
+        lhs: Box<Expression>,
+        rhs: Box<Expression>,
+        operator: BinaryOperator,
+    },
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -175,13 +188,81 @@ fn build_reassignment(pair: Pair<Rule>) -> Result<Assignment> {
 }
 
 fn build_expression(pair: Pair<Rule>) -> Result<Expression> {
-    assert_eq!(pair.as_rule(), Rule::Expression);
+    build_addition(pair.into_inner().next().unwrap())
+}
+
+fn build_addition(pair: Pair<Rule>) -> Result<Expression> {
+    let mut inner = pair.into_inner();
+
+    let mut expr = build_multiplication(inner.next().unwrap())?;
+
+    while let Some(op) = inner.next() {
+        let rhs = build_multiplication(
+            inner
+                .next()
+                .expect("operator must have a right-hand operand"),
+        )?;
+
+        let operator = match op.as_rule() {
+            Rule::Plus => BinaryOperator::Add,
+            Rule::Minus => BinaryOperator::Subtract,
+            _ => unreachable!("{:?}", op.as_rule()),
+        };
+
+        expr = Expression::Binary {
+            lhs: Box::new(expr),
+            operator,
+            rhs: Box::new(rhs),
+        };
+    }
+
+    Ok(expr)
+}
+
+fn build_multiplication(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::Multiplication);
+
+    let mut inner = pair.into_inner();
+
+    let mut expr = build_unary(inner.next().unwrap())?;
+
+    while let Some(op) = inner.next() {
+        let rhs = inner
+            .next()
+            .expect("multiplication operator must have a right-hand operand");
+
+        let operator = match op.as_rule() {
+            Rule::Star => BinaryOperator::Multiply,
+            Rule::Slash => BinaryOperator::Divide,
+            _ => unreachable!("{:?}", op.as_rule()),
+        };
+
+        expr = Expression::Binary {
+            lhs: Box::new(expr),
+            operator,
+            rhs: Box::new(build_unary(rhs)?),
+        };
+    }
+
+    Ok(expr)
+}
+
+fn build_unary(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::Unary);
+
+    let inner = pair.into_inner().next().unwrap();
+    build_primary(inner)
+}
+
+fn build_primary(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::Primary);
 
     let inner = pair.into_inner().next().unwrap();
 
     match inner.as_rule() {
         Rule::Value => Ok(Expression::Value(build_value(inner)?)),
         Rule::FunctionCall => Ok(Expression::FunctionCall(build_function_call(inner)?)),
+        Rule::Expression => build_expression(inner), // parenthesised
         _ => unreachable!("{:?}", inner.as_rule()),
     }
 }
