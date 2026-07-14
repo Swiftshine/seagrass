@@ -4,7 +4,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::core::lang::ast::{
     Assignment, BinaryOperator, Block, DataType, Expression, FunctionDefinition, Program, Return,
-    Statement, Value,
+    Statement, StructDefinition, Value,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -13,16 +13,22 @@ pub enum RuntimeValue {
     U32(u32),
     S32(i32),
     String(String),
+    Struct {
+        definition: Rc<StructDefinition>,
+        fields: HashMap<String, RuntimeValue>,
+    },
 }
 
 impl RuntimeValue {
-    pub fn data_type(&self) -> &'static str {
+    pub fn data_type(&self) -> String {
         match self {
             Self::None => "None",
             Self::U32(_) => "u32",
             Self::S32(_) => "s32",
             Self::String(_) => "string",
+            Self::Struct { definition, .. } => &definition.identifier,
         }
+        .to_string()
     }
 }
 
@@ -48,19 +54,21 @@ pub enum RuntimeError {
     FunctionNotInCallStack(String),
     #[error("Unsupported binary operation for '[{lhs_type}] {operation} [{rhs_type}]'")]
     UnsupportedBinaryOperation {
-        lhs_type: &'static str,
+        lhs_type: String,
         operation: &'static str,
-        rhs_type: &'static str,
+        rhs_type: String,
     },
     #[error("Type mismatch")]
     TypeMismatch,
+    #[error("Identifier {0} already defined as a {1}")]
+    AlreadyDefined(String, &'static str),
 }
 
 impl RuntimeError {
     pub fn unsupported_binary_operation(
-        lhs_type: &'static str,
+        lhs_type: String,
         operation: &'static str,
-        rhs_type: &'static str,
+        rhs_type: String,
     ) -> Self {
         Self::UnsupportedBinaryOperation {
             lhs_type,
@@ -186,6 +194,7 @@ pub struct Runtime {
     call_stack: Vec<FunctionFrame>,
     dead_frames: Vec<FunctionFrame>,
     functions: HashMap<String, RuntimeFunction>,
+    structs: HashMap<String, Rc<StructDefinition>>,
     config: RuntimeConfig,
 }
 
@@ -196,6 +205,7 @@ impl Runtime {
             call_stack: Vec::new(),
             dead_frames: Vec::new(),
             functions: HashMap::new(),
+            structs: HashMap::new(),
             config: RuntimeConfig::default(),
         }
     }
@@ -344,17 +354,26 @@ impl Runtime {
         // collect sg:: functions
         self.register_native_functions();
 
-        // collect function definitions
+        // collect struct and function definitions
         for statement in &program.statements {
-            if let Statement::FunctionDefinition(func) = statement {
-                self.define_function(func)?;
+            match statement {
+                Statement::FunctionDefinition(func) => {
+                    self.define_function(func)?;
+                }
+                Statement::StructDefinition(struct_definition) => {
+                    self.define_struct(struct_definition)?;
+                }
+                _ => {}
             }
         }
 
         // execute normal statements
         for statement in &program.statements {
-            if !matches!(statement, Statement::FunctionDefinition(_)) {
-                self.execute_statement(statement)?;
+            match statement {
+                Statement::FunctionDefinition(_) | Statement::StructDefinition(_) => {}
+                _ => {
+                    self.execute_statement(statement)?;
+                }
             }
         }
 
@@ -375,9 +394,9 @@ impl Runtime {
                 Ok(ControlFlow::Continue)
             }
 
-            Statement::FunctionDefinition(function) => self.define_function(function),
-
             Statement::Return(ret) => self.execute_return(ret),
+
+            _ => unreachable!("{:?}", statement),
         }
     }
 
@@ -389,6 +408,8 @@ impl Runtime {
         }
 
         let ident = assignment.identifier.clone();
+
+        self.validate_identifier(&ident)?;
 
         if assignment.declarative {
             // create a new variable
@@ -416,6 +437,7 @@ impl Runtime {
             _ => Err(RuntimeError::TypeMismatch),
         }
     }
+
     fn execute_return(&mut self, ret: &Return) -> StatementResult {
         let value = self.evaluate_expression(&ret.expression)?;
         Ok(ControlFlow::Return(value))
@@ -464,10 +486,21 @@ impl Runtime {
     }
 
     fn define_function(&mut self, func: &FunctionDefinition) -> StatementResult {
-        self.functions.insert(
-            func.identifier.clone(),
-            RuntimeFunction::User(Rc::new(func.clone())),
-        );
+        let identifier = func.identifier.clone();
+        self.validate_identifier(&identifier)?;
+
+        self.functions
+            .insert(identifier, RuntimeFunction::User(Rc::new(func.clone())));
+
+        Ok(ControlFlow::Continue)
+    }
+
+    fn define_struct(&mut self, struct_definition: &StructDefinition) -> StatementResult {
+        let identifier = struct_definition.identifier.clone();
+        self.validate_identifier(&identifier)?;
+
+        self.structs
+            .insert(identifier, Rc::new(struct_definition.clone()));
 
         Ok(ControlFlow::Continue)
     }
@@ -544,6 +577,23 @@ impl Runtime {
             Value::String(string) => Ok(RuntimeValue::String(string.clone())),
 
             Value::Identifier(name) => self.get_variable(name).cloned(),
+        }
+    }
+
+    fn validate_identifier(&self, identifier: &str) -> RuntimeResult<()> {
+        // check against data types and functions
+        if self.structs.get(identifier).is_some() {
+            Err(RuntimeError::AlreadyDefined(
+                identifier.to_string(),
+                "struct",
+            ))
+        } else if self.functions.get(identifier).is_some() {
+            Err(RuntimeError::AlreadyDefined(
+                identifier.to_string(),
+                "function",
+            ))
+        } else {
+            Ok(())
         }
     }
 }

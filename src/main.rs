@@ -11,5 +11,6 @@ fn main() -> Result<()> {
     let mut runtime = Runtime::new().with_config(RuntimeConfigOption::PreserveExpiredFrames(true));
     runtime.execute(&program)?;
 
+    dbg!(&runtime);
     Ok(())
 }

@@ -46,6 +46,6 @@ pub fn build_data_type(pair: Pair<Rule>) -> Result<DataType> {
         "u32" => Ok(DataType::U32),
         "s32" => Ok(DataType::S32),
         "string" => Ok(DataType::String),
-        _ => unreachable!("{:?}", pair),
+        other => Ok(DataType::UserDefined(other.to_string())),
     }
 }

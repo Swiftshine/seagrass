@@ -16,16 +16,19 @@ Program = {
 Keyword = {
     KeywordFn |
     KeywordLet |
-    KeywordReturn
+    KeywordReturn |
+    KeywordStruct
 }
+
 KeywordFn = @{ "fn" ~ KeywordBoundary }
 KeywordLet = @{ "let" ~ KeywordBoundary }
 KeywordReturn = @{ "return" ~ KeywordBoundary }
+KeywordStruct = @{ "struct" ~ KeywordBoundary }
 
 // Execution
 Block = {
     LBrace ~
-    Statement* ~
+        Statement* ~
     RBrace
 }
 
@@ -54,6 +57,7 @@ Plus   =  { "+" }
 Minus  =  { "-" }
 Star   =  { "*" }
 Slash  =  { "/" }
+Dot    = _{ "." }
 Comma  = _{ "," }
 Equals = _{ "=" }
 Colon  = _{ ":" }
@@ -72,8 +76,13 @@ QualifiedIdentifier = {
     Identifier ~ (ScopeResolution ~ Identifier)*
 }
 
-DataType = {
+BuiltinDataType = {
     "u32" | "s32" | "string"
+}
+
+DataType = {
+    BuiltinDataType |
+    Identifier
 }
 
 TypeAnnotation = {
@@ -115,6 +124,7 @@ Value = {
 
 Statement = {
     FunctionDefinition |
+    StructDefinition |
     Assignment ~ EOL |
     Return ~ EOL |
     Expression ~ EOL
@@ -165,4 +175,18 @@ Primary = {
     FunctionCall |
     Value |
     LParen ~ Expression ~ RParen
+}
+
+StructDefinition = {
+    KeywordStruct ~ Identifier ~ LBrace ~
+        StructFields? ~
+    RBrace
+}
+
+StructFields = {
+    StructFieldDefinition ~ (Comma ~ StructFieldDefinition)*
+}
+
+StructFieldDefinition = {
+    Identifier ~ Colon ~ DataType
 }

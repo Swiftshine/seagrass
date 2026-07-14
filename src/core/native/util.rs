@@ -12,6 +12,8 @@ pub(crate) mod sg {
                 RuntimeValue::S32(i) => print!("s32: {i}"),
                 RuntimeValue::String(string) => print!("string: {string}"),
                 RuntimeValue::None => {}
+
+                _ => print!("cannot print for type: {}", value.data_type()),
             }
         }
 

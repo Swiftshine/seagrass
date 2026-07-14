@@ -20,6 +20,7 @@ pub enum Statement {
     Expression(Expression),
     FunctionDefinition(FunctionDefinition),
     Return(Return),
+    StructDefinition(StructDefinition),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -103,6 +104,20 @@ pub enum DataType {
     U32,
     S32,
     String,
+    UserDefined(String),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct StructDefinition {
+    pub identifier: String,
+    // using vec here because the field order matters
+    pub fields: Vec<StructFieldDefinition>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct StructFieldDefinition {
+    identifier: String,
+    data_type: DataType,
 }
 
 pub fn dump(pair: Pair<Rule>, indent: usize) {
@@ -143,6 +158,7 @@ fn build_statement(pair: Pair<Rule>) -> Result<Statement> {
             inner,
         )?)),
         Rule::Return => Ok(Statement::Return(build_return(inner)?)),
+        Rule::StructDefinition => Ok(Statement::StructDefinition(build_struct_definition(inner)?)),
         _ => unreachable!("{:?}", inner.as_rule()),
     }
 }
@@ -285,6 +301,51 @@ fn build_primary(pair: Pair<Rule>) -> Result<Expression> {
         Rule::Expression => build_expression(inner), // parenthesised
         _ => unreachable!("{:?}", inner.as_rule()),
     }
+}
+
+fn build_struct_definition(pair: Pair<Rule>) -> Result<StructDefinition> {
+    assert_eq!(pair.as_rule(), Rule::StructDefinition);
+
+    let mut inner = pair.into_inner();
+
+    // KeywordStruct
+    inner.next();
+
+    // Identifier
+    let identifier = inner.next().unwrap().as_str().to_string();
+
+    // StructFields?
+    let fields = match inner.next() {
+        Some(pair) => build_struct_field_definitions(pair)?,
+        None => Vec::new(),
+    };
+
+    Ok(StructDefinition { identifier, fields })
+}
+
+fn build_struct_field_definitions(pair: Pair<Rule>) -> Result<Vec<StructFieldDefinition>> {
+    assert_eq!(pair.as_rule(), Rule::StructFields);
+
+    pair.into_inner()
+        .map(build_struct_field_definition)
+        .collect()
+}
+
+fn build_struct_field_definition(pair: Pair<Rule>) -> Result<StructFieldDefinition> {
+    assert_eq!(pair.as_rule(), Rule::StructFieldDefinition);
+
+    let mut inner = pair.into_inner();
+
+    // Identifier
+    let identifier = inner.next().unwrap().as_str().to_string();
+
+    // DataType
+    let data_type = build_data_type(inner.next().unwrap())?;
+
+    Ok(StructFieldDefinition {
+        identifier,
+        data_type,
+    })
 }
 
 fn build_function_definition(pair: Pair<Rule>) -> Result<FunctionDefinition> {
