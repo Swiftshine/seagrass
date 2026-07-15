@@ -29,9 +29,9 @@ pub fn assignment_from_existing_value() -> Result<()> {
         let value2 = value1;
     ";
 
-    let runtime = execute_source(source)?;
-    let value1 = runtime.get_variable("value1")?;
-    let value2 = runtime.get_variable("value2")?;
+    let runtime = execute_source(source, &vec![])?;
+    let value1 = runtime.get_global_variable("value1")?;
+    let value2 = runtime.get_global_variable("value2")?;
     assert_eq!(*value1, *value2);
     Ok(())
 }
