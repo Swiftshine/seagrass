@@ -53,6 +53,7 @@ pub enum RuntimeFunction {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
+    // Missing values
     #[error("Variable '{0}' not defined")]
     VariableNotFound(String),
     #[error("Function '{0}' not defined")]
@@ -63,6 +64,17 @@ pub enum RuntimeError {
     NotANativeFunction(String),
     #[error("Function '{0}' not in call stack")]
     FunctionNotInCallStack(String),
+    #[error("Expected data type, but found None")]
+    NoDataTypeAttached,
+    #[error("Field '{field_name}' does not exist in struct '{struct_name}'")]
+    InvalidStructFieldAccess {
+        field_name: String,
+        struct_name: String
+    },
+    #[error("Struct definition '{0}' not found")]
+    StructDefinitionNotFound(String),
+
+    // Mismatches
     #[error("Unsupported binary operation for '[{lhs_type}] {operation} [{rhs_type}]'")]
     UnsupportedBinaryOperation {
         lhs_type: String,
@@ -76,8 +88,9 @@ pub enum RuntimeError {
     },
     #[error("Identifier '{0}' already defined as a {1}")]
     AlreadyDefined(String, &'static str),
-    #[error("Struct definition '{0}' not found")]
-    StructDefinitionNotFound(String),
+
+    
+    // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]
     IncompleteStructInitialization(String),
     #[error("Invalid initialization type for field '{field_name}' of struct '{struct_name}' (expected '{expected}', found '{found}')")]
@@ -87,8 +100,11 @@ pub enum RuntimeError {
         expected: String,
         found: String
     },
-    #[error("Expected data type, but found None")]
-    NoDataTypeAttached
+    #[error("Cannot access field '{field}' of '{data_type}' because it is not a struct")]
+    InvalidStructFieldAccessTarget {
+        field: String,
+        data_type: String
+    }
 }
 
 impl RuntimeError {
@@ -473,6 +489,24 @@ impl Runtime {
             }
 
             Expression::StructInitialization(init) => self.initialize_struct(init),
+
+            Expression::StructFieldAccess { expression, field } => {
+                let value = self.evaluate_expression(expression)?;
+
+                match value {
+                    RuntimeValue::Struct { definition, fields } => {
+                        fields.get(field).cloned().ok_or(RuntimeError::InvalidStructFieldAccess {
+                            field_name: field.clone(),
+                            struct_name: definition.identifier.clone()
+                        })
+                    }
+
+                    _ => Err(RuntimeError::InvalidStructFieldAccessTarget {
+                        field: field.clone(),
+                        data_type: value.data_type()?.to_string()
+                    })
+                }
+            }
         }
     }
 

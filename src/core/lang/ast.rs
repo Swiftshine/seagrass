@@ -38,7 +38,12 @@ pub enum Expression {
         operator: BinaryOperator,
     },
     StructInitialization(StructInitialization),
+    StructFieldAccess {
+        expression: Box<Expression>,
+        field: String,
+    }
 }
+
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BinaryOperator {
@@ -297,11 +302,28 @@ fn build_unary(pair: Pair<Rule>) -> Result<Expression> {
     assert_eq!(pair.as_rule(), Rule::Unary);
 
     let inner = pair.into_inner().next().unwrap();
-    build_primary(inner)
+    build_postfix(inner)
 }
 
-fn build_primary(pair: Pair<Rule>) -> Result<Expression> {
-    assert_eq!(pair.as_rule(), Rule::Primary);
+fn build_postfix(pair: Pair<Rule>) -> Result<Expression> {
+    let mut inner = pair.into_inner();
+
+    let mut expr = build_atom(inner.next().unwrap())?;
+
+    for field in inner {
+        let field = field.into_inner().next().unwrap().as_str().to_string();
+
+        expr = Expression::StructFieldAccess {
+            expression: Box::new(expr),
+            field,
+        };
+    }
+
+    Ok(expr)
+}
+
+fn build_atom(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::Atom);
 
     let inner = pair.into_inner().next().unwrap();
 

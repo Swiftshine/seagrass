@@ -10,7 +10,5 @@ fn main() -> Result<()> {
     let program = lang::build_program(&contents)?;
     let mut runtime = Runtime::new().with_config(RuntimeConfigOption::PreserveExpiredFrames(true));
     runtime.execute(&program)?;
-
-    dbg!(&runtime);
     Ok(())
 }

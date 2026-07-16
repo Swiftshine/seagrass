@@ -172,10 +172,18 @@ MulOp = _{
 }
 
 Unary = {
-    Primary
+    Postfix
 }
 
-Primary = {
+Postfix = {
+    Atom ~ (FieldAccess)*
+}
+
+FieldAccess = {
+    Dot ~ Identifier
+}
+
+Atom = {
     StructInitialization |
     FunctionCall |
     Value |
