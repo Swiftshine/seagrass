@@ -40,8 +40,14 @@ pub enum Expression {
     StructInitialization(StructInitialization),
     StructFieldAccess {
         expression: Box<Expression>,
-        field: String,
-    }
+        field_identifier: String,
+    },
+
+    // MethodCall {
+    //     expression: Box<Expression>,
+    //     method_identifier: String,
+    //     arguments: Vec<Expression>,
+    // }
 }
 
 
@@ -315,7 +321,7 @@ fn build_postfix(pair: Pair<Rule>) -> Result<Expression> {
 
         expr = Expression::StructFieldAccess {
             expression: Box::new(expr),
-            field,
+            field_identifier: field,
         };
     }
 

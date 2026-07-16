@@ -498,7 +498,7 @@ impl Runtime {
 
             Expression::StructInitialization(init) => self.initialize_struct(init),
 
-            Expression::StructFieldAccess { expression, field } => {
+            Expression::StructFieldAccess { expression, field_identifier: field } => {
                 let value = self.evaluate_expression(expression)?;
 
                 match value {

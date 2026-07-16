@@ -17,13 +17,15 @@ Keyword = {
     KeywordFn |
     KeywordLet |
     KeywordReturn |
-    KeywordStruct
+    KeywordStruct |
+    KeywordImpl
 }
 
 KeywordFn = @{ "fn" ~ KeywordBoundary }
 KeywordLet = @{ "let" ~ KeywordBoundary }
 KeywordReturn = @{ "return" ~ KeywordBoundary }
 KeywordStruct = @{ "struct" ~ KeywordBoundary }
+KeywordImpl = @{ "impl" ~ KeywordBoundary }
 
 // Execution
 Block = {
@@ -127,6 +129,7 @@ Value = {
 }
 
 Statement = {
+    StructImplBlock |
     FunctionDefinition |
     StructDefinition |
     Assignment ~ EOL |
@@ -176,7 +179,16 @@ Unary = {
 }
 
 Postfix = {
-    Atom ~ (FieldAccess)*
+    Atom ~ (PostfixOperation)*
+}
+
+PostfixOperation = {
+    FieldAccess
+}
+
+// distinct from FunctionCall; a method here is a function attached to a struct
+MethodCall = {
+    Dot ~ Identifier ~ LParen ~ ArgumentList? ~ RParen
 }
 
 FieldAccess = {
@@ -214,6 +226,12 @@ StructFields = {
 
 StructFieldDefinition = {
     Identifier ~ Colon ~ DataType
+}
+
+StructImplBlock = {
+    KeywordImpl ~ Identifier ~ LBrace ~
+        FunctionDefinition* ~
+    RBrace
 }
 
 ConfigStatement = @{
