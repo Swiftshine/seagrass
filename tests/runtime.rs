@@ -3,4 +3,5 @@ mod runtime {
     mod expressions;
     mod functions;
     mod scopes;
+    mod structs;
 }

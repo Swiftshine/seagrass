@@ -21,17 +21,6 @@ pub enum RuntimeValue {
 }
 
 impl RuntimeValue {
-    // pub fn data_type(&self) -> String {
-    //     match self {
-    //         Self::None => "None",
-    //         Self::U32(_) => "u32",
-    //         Self::S32(_) => "s32",
-    //         Self::String(_) => "string",
-    //         Self::Struct { definition, .. } => &definition.identifier,
-    //     }
-    //     .to_string()
-    // }
-
     pub fn data_type(&self) -> RuntimeResult<DataType> {
         match self {
             Self::None => Err(RuntimeError::NoDataTypeAttached),
@@ -39,6 +28,25 @@ impl RuntimeValue {
             Self::S32(_) => Ok(DataType::S32),
             Self::String(_) => Ok(DataType::String),
             Self::Struct { definition, ..} => Ok(DataType::UserDefined(definition.identifier.clone()))
+        }
+    }
+
+    pub fn struct_access(&self, identifier: &str) -> RuntimeResult<RuntimeValue> {
+        match self {
+            Self::Struct { definition, fields } => {
+                fields
+                    .get(identifier)
+                    .cloned()
+                    .ok_or(RuntimeError::InvalidStructFieldAccess {
+                        field_name: identifier.to_string(),
+                        struct_name: definition.identifier.clone(),
+                    })
+            }
+
+            _ => Err(RuntimeError::InvalidStructFieldAccessTarget {
+                field: identifier.to_string(),
+                data_type: self.data_type()?.to_string(),
+            }),
         }
     }
 }
