@@ -4,7 +4,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::core::lang::ast::{
     Assignment, BinaryOperator, Block, DataType, Expression, FunctionDefinition, Program, Return,
-    Statement, StructDefinition, Value,
+    Statement, StructDefinition, StructInitialization, Value,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -58,10 +58,14 @@ pub enum RuntimeError {
         operation: &'static str,
         rhs_type: String,
     },
-    #[error("Type mismatch")]
-    TypeMismatch,
-    #[error("Identifier {0} already defined as a {1}")]
+    #[error("Unexpected type annotation '{0}'")]
+    UnexpectedTypeAnnotation(String),
+    #[error("Identifier '{0}' already defined as a {1}")]
     AlreadyDefined(String, &'static str),
+    #[error("Struct definition '{0}' not found")]
+    StructDefinitionNotFound(String),
+    #[error("Incomplete struct initialization for '{0}'")]
+    IncompleteStructInitialization(String),
 }
 
 impl RuntimeError {
@@ -132,11 +136,24 @@ impl RuntimeScope {
 #[derive(Clone, Copy)]
 pub enum RuntimeConfigOption {
     PreserveExpiredFrames(bool),
+    ErrorOnIncompleteFieldInitialization(bool),
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct RuntimeConfig {
+    /// (Development) Allows expired function frames and scopes to be preserved to inspect its end-of-life state.
     preserve_expired_frames: bool,
+    /// (Interpreter) Raises an error if struct initialization does not list every variable.
+    error_on_incomplete_struct_initialization: bool,
+}
+
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        Self {
+            preserve_expired_frames: false,
+            error_on_incomplete_struct_initialization: true,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -215,6 +232,10 @@ impl Runtime {
             RuntimeConfigOption::PreserveExpiredFrames(should_preserve) => {
                 self.config.preserve_expired_frames = should_preserve;
             }
+
+            RuntimeConfigOption::ErrorOnIncompleteFieldInitialization(should_error) => {
+                self.config.error_on_incomplete_struct_initialization = should_error;
+            }
         }
     }
 
@@ -229,6 +250,14 @@ impl Runtime {
         }
 
         self
+    }
+
+    pub fn get_struct_definition(&self, identifier: &str) -> RuntimeResult<&Rc<StructDefinition>> {
+        self.structs
+            .get(identifier)
+            .ok_or(RuntimeError::StructDefinitionNotFound(
+                identifier.to_string(),
+            ))
     }
 
     pub fn push_frame(&mut self, identifier: String) {
@@ -434,7 +463,8 @@ impl Runtime {
 
             (RuntimeValue::S32(i), DataType::U32) if i >= 0 => Ok(RuntimeValue::U32(i as u32)),
 
-            _ => Err(RuntimeError::TypeMismatch),
+            // todo: handle type annotations of struct initialization
+            _ => Err(RuntimeError::UnexpectedTypeAnnotation(expected.to_string())),
         }
     }
 
@@ -551,7 +581,53 @@ impl Runtime {
 
                 self.evaluate_binary(*operator, lhs, rhs)
             }
+
+            Expression::StructInitialization(init) => self.initialize_struct(init),
         }
+    }
+
+    fn initialize_struct(&mut self, init: &StructInitialization) -> RuntimeResult<RuntimeValue> {
+        let definition = self.get_struct_definition(&init.identifier)?.clone();
+
+        let mut runtime_struct = RuntimeValue::Struct {
+            definition: definition.clone(),
+            fields: HashMap::new(),
+        };
+
+        let mut struct_fields = HashMap::new();
+
+        for field_definition in &definition.fields {
+            if init
+                .initialized_fields
+                .iter()
+                .find(|f| &f.identifier == &field_definition.identifier)
+                .is_none()
+            {
+                if self.config.error_on_incomplete_struct_initialization {
+                    return Err(RuntimeError::IncompleteStructInitialization(
+                        definition.identifier.clone(),
+                    ));
+                } else {
+                    todo!("implement default values");
+                }
+            } else {
+                let initialized_field = init
+                    .initialized_fields
+                    .iter()
+                    .find(|f| &f.identifier == &field_definition.identifier)
+                    .unwrap();
+
+                let value = self.evaluate_expression(&initialized_field.expression)?;
+
+                struct_fields.insert(initialized_field.identifier.clone(), value);
+            }
+        }
+
+        if let RuntimeValue::Struct { fields, .. } = &mut runtime_struct {
+            *fields = struct_fields;
+        }
+
+        Ok(runtime_struct)
     }
 
     fn evaluate_binary(

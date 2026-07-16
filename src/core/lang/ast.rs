@@ -1,5 +1,4 @@
 mod data_types;
-use std::fmt::{self, Display};
 
 use data_types::*;
 
@@ -38,6 +37,7 @@ pub enum Expression {
         rhs: Box<Expression>,
         operator: BinaryOperator,
     },
+    StructInitialization(StructInitialization),
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -48,17 +48,16 @@ pub enum BinaryOperator {
     Divide,
 }
 
-impl Display for BinaryOperator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let symbol = match self {
-            Self::Add => "+",
-            Self::Subtract => "-",
-            Self::Multiply => "*",
-            Self::Divide => "/",
-        };
+#[derive(Debug, PartialEq, Clone)]
+pub struct StructInitialization {
+    pub identifier: String,
+    pub initialized_fields: Vec<StructFieldInitialization>,
+}
 
-        write!(f, "{symbol}")
-    }
+#[derive(Debug, PartialEq, Clone)]
+pub struct StructFieldInitialization {
+    pub identifier: String,
+    pub expression: Expression,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -107,6 +106,17 @@ pub enum DataType {
     UserDefined(String),
 }
 
+impl DataType {
+    pub fn to_string(&self) -> String {
+        match self {
+            Self::U32 => "u32",
+            Self::S32 => "s32",
+            Self::String => "string",
+            Self::UserDefined(user_defined_type) => user_defined_type,
+        }
+        .to_string()
+    }
+}
 #[derive(Debug, PartialEq, Clone)]
 pub struct StructDefinition {
     pub identifier: String,
@@ -116,8 +126,8 @@ pub struct StructDefinition {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct StructFieldDefinition {
-    identifier: String,
-    data_type: DataType,
+    pub identifier: String,
+    pub data_type: DataType,
 }
 
 pub fn dump(pair: Pair<Rule>, indent: usize) {
@@ -299,8 +309,63 @@ fn build_primary(pair: Pair<Rule>) -> Result<Expression> {
         Rule::Value => Ok(Expression::Value(build_value(inner)?)),
         Rule::FunctionCall => Ok(Expression::FunctionCall(build_function_call(inner)?)),
         Rule::Expression => build_expression(inner), // parenthesised
+        Rule::StructInitialization => Ok(Expression::StructInitialization(
+            build_struct_initialization(inner)?,
+        )),
         _ => unreachable!("{:?}", inner.as_rule()),
     }
+}
+
+fn build_struct_initialization(pair: Pair<Rule>) -> Result<StructInitialization> {
+    assert_eq!(pair.as_rule(), Rule::StructInitialization);
+
+    let mut inner = pair.into_inner();
+
+    // Identifier
+    let identifier = inner.next().unwrap().as_str().to_string();
+
+    // StructFieldInitializers?
+    let fields = match inner.next() {
+        Some(pair) if pair.as_rule() == Rule::StructFieldInitializers => {
+            build_struct_field_initializers(pair)?
+        }
+
+        // empty initializers
+        _ => Vec::new(),
+    };
+
+    Ok(StructInitialization {
+        identifier,
+        initialized_fields: fields,
+    })
+}
+
+fn build_struct_field_initializers(pair: Pair<Rule>) -> Result<Vec<StructFieldInitialization>> {
+    assert_eq!(pair.as_rule(), Rule::StructFieldInitializers);
+
+    pair.into_inner()
+        .map(build_struct_field_initializer)
+        .collect()
+}
+
+fn build_struct_field_initializer(pair: Pair<Rule>) -> Result<StructFieldInitialization> {
+    assert_eq!(pair.as_rule(), Rule::StructFieldInitializer);
+
+    let mut inner = pair.into_inner();
+
+    // Identifier
+    let identifier = inner.next().unwrap().as_str().to_string();
+
+    // // DataType
+    // let data_type = build_data_type(inner.next().unwrap())?;
+
+    // Expression
+    let expression = build_expression(inner.next().unwrap())?;
+
+    Ok(StructFieldInitialization {
+        identifier,
+        expression,
+    })
 }
 
 fn build_struct_definition(pair: Pair<Rule>) -> Result<StructDefinition> {
