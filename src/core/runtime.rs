@@ -21,15 +21,25 @@ pub enum RuntimeValue {
 }
 
 impl RuntimeValue {
-    pub fn data_type(&self) -> String {
+    // pub fn data_type(&self) -> String {
+    //     match self {
+    //         Self::None => "None",
+    //         Self::U32(_) => "u32",
+    //         Self::S32(_) => "s32",
+    //         Self::String(_) => "string",
+    //         Self::Struct { definition, .. } => &definition.identifier,
+    //     }
+    //     .to_string()
+    // }
+
+    pub fn data_type(&self) -> RuntimeResult<DataType> {
         match self {
-            Self::None => "None",
-            Self::U32(_) => "u32",
-            Self::S32(_) => "s32",
-            Self::String(_) => "string",
-            Self::Struct { definition, .. } => &definition.identifier,
+            Self::None => Err(RuntimeError::NoDataTypeAttached),
+            Self::U32(_) => Ok(DataType::U32),
+            Self::S32(_) => Ok(DataType::S32),
+            Self::String(_) => Ok(DataType::String),
+            Self::Struct { definition, ..} => Ok(DataType::UserDefined(definition.identifier.clone()))
         }
-        .to_string()
     }
 }
 
@@ -59,14 +69,26 @@ pub enum RuntimeError {
         operation: &'static str,
         rhs_type: String,
     },
-    #[error("Unexpected type annotation '{0}'")]
-    UnexpectedTypeAnnotation(String),
+    #[error("Type mismatch (expected '{expected}', found '{found}')")]
+    TypeMismatch {
+        expected: String,
+        found: String,
+    },
     #[error("Identifier '{0}' already defined as a {1}")]
     AlreadyDefined(String, &'static str),
     #[error("Struct definition '{0}' not found")]
     StructDefinitionNotFound(String),
     #[error("Incomplete struct initialization for '{0}'")]
     IncompleteStructInitialization(String),
+    #[error("Invalid initialization type for field '{field_name}' of struct '{struct_name}' (expected '{expected}', found '{found}')")]
+    InvalidStructFieldInitialization {
+        field_name: String,
+        struct_name: String,
+        expected: String,
+        found: String
+    },
+    #[error("Expected data type, but found None")]
+    NoDataTypeAttached
 }
 
 impl RuntimeError {
@@ -313,6 +335,8 @@ impl Runtime {
         value: RuntimeValue,
         expected: &DataType,
     ) -> RuntimeResult<RuntimeValue> {
+        let value_data_type_string = value.data_type()?.to_string();
+
         match (value, expected) {
             (RuntimeValue::S32(i), DataType::S32) => Ok(RuntimeValue::S32(i)),
 
@@ -320,8 +344,17 @@ impl Runtime {
 
             (RuntimeValue::S32(i), DataType::U32) if i >= 0 => Ok(RuntimeValue::U32(i as u32)),
 
+            (value, DataType::UserDefined(expected))
+                if value.data_type()?.to_string() == *expected =>
+            {
+                Ok(value)
+            }
+
             // todo: handle type annotations of struct initialization
-            _ => Err(RuntimeError::UnexpectedTypeAnnotation(expected.to_string())),
+            _ => Err(RuntimeError::TypeMismatch {
+                expected: expected.to_string(),
+                found: value_data_type_string,
+            }),
         }
     }
 
@@ -475,6 +508,22 @@ impl Runtime {
                     .unwrap();
 
                 let value = self.evaluate_expression(&initialized_field.expression)?;
+
+                let value = match self.apply_type_annotation(value, &field_definition.data_type) {
+                    Ok(value) => value,
+                    Err(RuntimeError::TypeMismatch { expected, found} ) => {
+                        return Err(RuntimeError::InvalidStructFieldInitialization {
+                            field_name: field_definition.identifier.clone(),
+                            struct_name: definition.identifier.clone(),
+                            expected,
+                            found
+                        })
+                    }
+
+                    Err(err) => return Err(err)
+                };
+                let value = self.apply_type_annotation(value, &field_definition.data_type)?;
+                
 
                 struct_fields.insert(initialized_field.identifier.clone(), value);
             }
