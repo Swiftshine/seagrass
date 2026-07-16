@@ -13,7 +13,7 @@ pub fn parse(rule: Rule, input: &str) -> Pair<'_, Rule> {
 
 pub fn parse_ok(rule: Rule, input: &str) {
     assert!(
-        SGParser::parse(rule, input).is_ok(),
+        SGParser::parse(rule, input.trim()).is_ok(),
         "Expected {:?} to parse:\n{}",
         rule,
         input
@@ -22,7 +22,7 @@ pub fn parse_ok(rule: Rule, input: &str) {
 
 pub fn parse_err(rule: Rule, input: &str) {
     assert!(
-        SGParser::parse(rule, input).is_err(),
+        SGParser::parse(rule, input.trim()).is_err(),
         "Expected {:?} to fail parsing:\n{}",
         rule,
         input

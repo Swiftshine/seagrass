@@ -15,3 +15,15 @@ fn parse_integer_as_value() {
 fn parse_integer_as_expression() {
     parse_ok(Rule::Expression, "123");
 }
+
+#[test]
+fn parse_addition() {
+    parse_ok(Rule::Addition, "1 + 2");
+    parse_ok(Rule::Addition, "1 - 2");
+}
+
+#[test]
+fn parse_multiplication() {
+    parse_ok(Rule::Multiplication, "1 * 2");
+    parse_ok(Rule::Multiplication, "1 / 2");
+}
