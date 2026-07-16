@@ -172,9 +172,22 @@ Unary = {
 }
 
 Primary = {
+    StructInitialization |
     FunctionCall |
     Value |
     LParen ~ Expression ~ RParen
+}
+
+StructInitialization = {
+    Identifier ~ LBrace ~ StructFieldInitializers? ~ RBrace
+}
+
+StructFieldInitializers = {
+    StructFieldInitializer ~ (Comma ~ StructFieldInitializer)*
+}
+
+StructFieldInitializer = {
+    Identifier ~ Colon ~ Expression
 }
 
 StructDefinition = {
