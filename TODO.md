@@ -5,3 +5,7 @@ runtime configuration statements
 // example:
 #[configure("dev_preserve_expired_frames", true)]
 ```
+
+other operators (and, or, xor...)
+
+control flow (if/else statements, loops...)
