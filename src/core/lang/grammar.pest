@@ -66,6 +66,10 @@ LBrace = _{ "{" }
 RBrace = _{ "}" }
 LParen = _{ "(" }
 RParen = _{ ")" }
+LBracket = _{ "[" }
+RBracket = _{ "]" }
+Pound  = _{ "#" }
+Hashtag = _{ Pound }
 
 Identifier = @{
     (ASCII_ALPHA | "_") ~
@@ -202,4 +206,8 @@ StructFields = {
 
 StructFieldDefinition = {
     Identifier ~ Colon ~ DataType
+}
+
+ConfigStatement = @{
+    Hashtag ~ LBracket ~ "configure" ~ LParen ~ String ~ Comma ~ Value ~ RParen ~ RBracket
 }
