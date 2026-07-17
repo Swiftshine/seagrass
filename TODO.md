@@ -9,3 +9,5 @@ runtime configuration statements
 other operators (and, or, xor...)
 
 control flow (if/else statements, loops...)
+
+struct impl blocks
