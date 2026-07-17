@@ -4,22 +4,20 @@ mod operators;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::lang::ast::{
-    Assignment, AssignmentTarget, BinaryOperator, Block, DataType, Expression, FunctionDefinition, Program, Return, Statement, StructDefinition, StructInitialization, Value,
+    Assignment, AssignmentTarget, BinaryOperator, Block, DataType, Expression, FunctionDefinition,
+    Program, Return, Statement, StructDefinition, StructInitialization, Value,
 };
 
 pub type RuntimeReference = Rc<RefCell<RuntimeVariable>>;
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuntimeVariable {
-    pub value: RuntimeValue
+    pub value: RuntimeValue,
 }
 
 impl RuntimeVariable {
     pub fn from_value(value: RuntimeValue) -> Self {
-        Self {
-            value
-        }
+        Self { value }
     }
 
     pub fn value(&self) -> RuntimeValue {
@@ -51,8 +49,12 @@ impl RuntimeValue {
             Self::U32(_) => Ok(DataType::U32),
             Self::S32(_) => Ok(DataType::S32),
             Self::String(_) => Ok(DataType::String),
-            Self::Struct { definition, ..} => Ok(DataType::UserDefined(definition.identifier.clone())),
-            Self::Reference(variable) => Ok(DataType::Reference(Box::new(variable.borrow().value().data_type()?)))
+            Self::Struct { definition, .. } => {
+                Ok(DataType::UserDefined(definition.identifier.clone()))
+            }
+            Self::Reference(variable) => Ok(DataType::Reference(Box::new(
+                variable.borrow().value().data_type()?,
+            ))),
         }
     }
 
@@ -68,9 +70,7 @@ impl RuntimeValue {
                     })
             }
 
-            Self::Reference(_) => {
-                self.dereference()
-            }
+            Self::Reference(_) => self.dereference(),
 
             _ => Err(RuntimeError::InvalidStructFieldAccessTarget {
                 field: identifier.to_string(),
@@ -83,7 +83,7 @@ impl RuntimeValue {
         // this function should only be called for struct
         match self {
             Self::Reference(reference) => reference.borrow().value().resolve(),
-            _ => self.clone()
+            _ => self.clone(),
         }
     }
 
@@ -95,9 +95,7 @@ impl RuntimeValue {
 
     pub fn dereference(&self) -> RuntimeResult<RuntimeValue> {
         match self {
-            RuntimeValue::Reference(variable) => {
-                Ok(variable.borrow().value().clone())
-            }
+            RuntimeValue::Reference(variable) => Ok(variable.borrow().value().clone()),
 
             _ => Ok(self.clone()),
         }
@@ -107,7 +105,6 @@ impl RuntimeValue {
         matches!(self, Self::Reference(_))
     }
 }
-
 
 pub type NativeFunction = fn(Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>;
 
@@ -135,7 +132,7 @@ pub enum RuntimeError {
     #[error("Field '{field_name}' does not exist in struct '{struct_name}'")]
     InvalidStructFieldAccess {
         field_name: String,
-        struct_name: String
+        struct_name: String,
     },
     #[error("Struct definition '{0}' not found")]
     StructDefinitionNotFound(String),
@@ -150,10 +147,7 @@ pub enum RuntimeError {
         rhs_type: String,
     },
     #[error("Type mismatch (expected '{expected}', found '{found}')")]
-    TypeMismatch {
-        expected: String,
-        found: String,
-    },
+    TypeMismatch { expected: String, found: String },
     #[error("Identifier '{0}' already defined as a {1}")]
     AlreadyDefined(String, &'static str),
     #[error("Invalid reference target")]
@@ -162,18 +156,17 @@ pub enum RuntimeError {
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]
     IncompleteStructInitialization(String),
-    #[error("Invalid initialization type for field '{field_name}' of struct '{struct_name}' (expected '{expected}', found '{found}')")]
+    #[error(
+        "Invalid initialization type for field '{field_name}' of struct '{struct_name}' (expected '{expected}', found '{found}')"
+    )]
     InvalidStructFieldInitialization {
         field_name: String,
         struct_name: String,
         expected: String,
-        found: String
+        found: String,
     },
     #[error("Cannot access field '{field}' of '{data_type}' because it is not a struct")]
-    InvalidStructFieldAccessTarget {
-        field: String,
-        data_type: String
-    }
+    InvalidStructFieldAccessTarget { field: String, data_type: String },
 }
 
 impl RuntimeError {
@@ -275,7 +268,7 @@ impl FunctionFrame {
             .rev()
             .find_map(|scope| scope.variables().get(identifier).cloned())
     }
-    
+
     pub fn get_variable_mut(&mut self, identifier: &str) -> Option<RuntimeReference> {
         self.scopes
             .iter_mut()
@@ -395,23 +388,23 @@ impl Runtime {
 
     fn execute_assignment(&mut self, assignment: &Assignment) -> StatementResult {
         let mut value = self.evaluate_expression(&assignment.expression)?;
-    
+
         if let Some(expected_type) = &assignment.data_type {
             value = self.apply_type_annotation(value, expected_type)?;
         }
-    
+
         if assignment.declarative {
             match &assignment.target {
                 AssignmentTarget::Identifier(ident) => {
                     self.assign_variable(ident.clone(), value);
                 }
-    
+
                 _ => unreachable!("invalid declarative assignment target"),
             }
         } else {
             self.assign_to_target(&assignment.target, value)?;
         }
-    
+
         Ok(ControlFlow::Continue)
     }
 
@@ -481,7 +474,7 @@ impl Runtime {
 
     fn assign_variable(&mut self, identifier: String, value: RuntimeValue) {
         let variable = Rc::new(RefCell::new(RuntimeVariable::from_value(value)));
-    
+
         if self.call_stack.is_empty() {
             self.global_scope
                 .variables_mut()
@@ -497,30 +490,31 @@ impl Runtime {
     fn assign_to_target(
         &mut self,
         target: &AssignmentTarget,
-        value: RuntimeValue
+        value: RuntimeValue,
     ) -> RuntimeResult<()> {
         match target {
             AssignmentTarget::Identifier(name) => {
                 let variable = self.get_variable(name)?;
                 variable.borrow_mut().set_value(value);
             }
-    
+
             AssignmentTarget::Dereference(expression) => {
                 let reference = self.evaluate_expression(expression)?;
-        
-                
+
                 match reference {
                     RuntimeValue::Reference(reference) => {
                         *reference.borrow_mut() = RuntimeVariable::from_value(value);
                     }
-    
+
                     other => {
-                        return Err(RuntimeError::ExpectedReference(other.data_type()?.to_string()))
+                        return Err(RuntimeError::ExpectedReference(
+                            other.data_type()?.to_string(),
+                        ));
                     }
                 }
             }
         }
-    
+
         Ok(())
     }
 
@@ -593,35 +587,37 @@ impl Runtime {
 
             Expression::StructInitialization(init) => self.initialize_struct(init),
 
-            Expression::StructFieldAccess { expression, field_identifier: field } => {
+            Expression::StructFieldAccess {
+                expression,
+                field_identifier: field,
+            } => {
                 let value = self.evaluate_expression(expression)?.resolve();
 
                 match value {
-                    RuntimeValue::Struct { definition, fields } => {
-                        fields.get(field).cloned().ok_or(RuntimeError::InvalidStructFieldAccess {
+                    RuntimeValue::Struct { definition, fields } => fields
+                        .get(field)
+                        .cloned()
+                        .ok_or(RuntimeError::InvalidStructFieldAccess {
                             field_name: field.clone(),
-                            struct_name: definition.identifier.clone()
-                        })
-                    }
+                            struct_name: definition.identifier.clone(),
+                        }),
 
                     _ => Err(RuntimeError::InvalidStructFieldAccessTarget {
                         field: field.clone(),
-                        data_type: value.data_type()?.to_string()
-                    })
+                        data_type: value.data_type()?.to_string(),
+                    }),
                 }
             }
 
-            Expression::Reference(expression) => {
-                match expression.as_ref() {
-                    Expression::Value(Value::Identifier(identifier)) => {
-                        let variable = self.get_variable(identifier)?;
-                        
-                        Ok(RuntimeValue::Reference(variable))
-                    }
-            
-                    _ => Err(RuntimeError::InvalidReferenceTarget)
+            Expression::Reference(expression) => match expression.as_ref() {
+                Expression::Value(Value::Identifier(identifier)) => {
+                    let variable = self.get_variable(identifier)?;
+
+                    Ok(RuntimeValue::Reference(variable))
                 }
-            }
+
+                _ => Err(RuntimeError::InvalidReferenceTarget),
+            },
 
             Expression::Dereference(expression) => {
                 let value = self.evaluate_expression(expression)?;
@@ -665,19 +661,18 @@ impl Runtime {
 
                 let value = match self.apply_type_annotation(value, &field_definition.data_type) {
                     Ok(value) => value,
-                    Err(RuntimeError::TypeMismatch { expected, found} ) => {
+                    Err(RuntimeError::TypeMismatch { expected, found }) => {
                         return Err(RuntimeError::InvalidStructFieldInitialization {
                             field_name: field_definition.identifier.clone(),
                             struct_name: definition.identifier.clone(),
                             expected,
-                            found
-                        })
+                            found,
+                        });
                     }
 
-                    Err(err) => return Err(err)
+                    Err(err) => return Err(err),
                 };
                 let value = self.apply_type_annotation(value, &field_definition.data_type)?;
-                
 
                 struct_fields.insert(initialized_field.identifier.clone(), value);
             }

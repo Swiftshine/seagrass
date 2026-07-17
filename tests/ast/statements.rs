@@ -1,5 +1,7 @@
 use crate::parse_program;
-use seagrass::core::lang::ast::{Assignment, AssignmentTarget, Expression, Program, Statement, Value};
+use seagrass::core::lang::ast::{
+    Assignment, AssignmentTarget, Expression, Program, Statement, Value,
+};
 
 #[test]
 pub fn let_assignment() {
@@ -40,7 +42,7 @@ pub fn reassignment() {
 
             let ident = match &assign.target {
                 AssignmentTarget::Identifier(ident) => ident.clone(),
-                _ => unreachable!("this assignment must not by via reference")
+                _ => unreachable!("this assignment must not by via reference"),
             };
 
             assert_eq!(ident, "x");

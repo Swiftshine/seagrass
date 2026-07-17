@@ -13,7 +13,7 @@ pub fn define_struct() -> Result<()> {
     ";
 
     execute_source(source, &vec![])?;
-    
+
     Ok(())
 }
 
@@ -35,14 +35,18 @@ pub fn initialize_struct() -> Result<()> {
 
     let runtime = execute_source(source, &[RuntimeConfigOption::PreserveExpiredFrames(true)])?;
 
-    let one = runtime
-        .get_global_variable("initialization")?;
+    let one = runtime.get_global_variable("initialization")?;
 
-    let two = runtime
-        .get_global_variable("annotated_initialization")?;
-    
-    assert_eq!(one.borrow().value().struct_access("field_1")?, RuntimeValue::U32(1));
-    assert_eq!(two.borrow().value().struct_access("field_1")?, RuntimeValue::U32(2));
+    let two = runtime.get_global_variable("annotated_initialization")?;
+
+    assert_eq!(
+        one.borrow().value().struct_access("field_1")?,
+        RuntimeValue::U32(1)
+    );
+    assert_eq!(
+        two.borrow().value().struct_access("field_1")?,
+        RuntimeValue::U32(2)
+    );
 
     Ok(())
 }
@@ -61,12 +65,11 @@ pub fn access_struct() -> Result<()> {
         let my_value = my_inst.field_1;
     ";
 
-
     let runtime = execute_source(source, &[RuntimeConfigOption::PreserveExpiredFrames(true)])?;
 
     let value = runtime.get_global_variable("my_value")?;
 
     assert_eq!(value.borrow().value(), RuntimeValue::U32(2));
-    
+
     Ok(())
 }

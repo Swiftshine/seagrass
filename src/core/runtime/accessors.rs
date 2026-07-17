@@ -3,8 +3,8 @@ use std::{collections::HashMap, rc::Rc};
 use crate::core::{
     lang::ast::{FunctionDefinition, StructDefinition},
     runtime::{
-        FunctionFrame, Runtime, RuntimeError, RuntimeFunction, RuntimeReference,
-        RuntimeResult, RuntimeScope, RuntimeScopeType, RuntimeValue,
+        FunctionFrame, Runtime, RuntimeError, RuntimeFunction, RuntimeReference, RuntimeResult,
+        RuntimeScope, RuntimeScopeType, RuntimeValue,
     },
 };
 
@@ -111,9 +111,9 @@ impl Runtime {
     ) -> RuntimeResult<fn(Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>> {
         match self.get_function(identifier)? {
             RuntimeFunction::Native(func) => Ok(*func),
-            RuntimeFunction::User(_) => Err(RuntimeError::NotANativeFunction(
-                identifier.to_string(),
-            )),
+            RuntimeFunction::User(_) => {
+                Err(RuntimeError::NotANativeFunction(identifier.to_string()))
+            }
         }
     }
 }

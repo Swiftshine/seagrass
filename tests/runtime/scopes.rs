@@ -54,6 +54,9 @@ pub fn check_scopes() -> Result<()> {
 
     let global_var = runtime.get_global_variable("global_var")?;
 
-    assert!(matches!(global_var.borrow().value(), RuntimeValue::S32(123)));
+    assert!(matches!(
+        global_var.borrow().value(),
+        RuntimeValue::S32(123)
+    ));
     Ok(())
 }

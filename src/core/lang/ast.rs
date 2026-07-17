@@ -51,7 +51,6 @@ pub enum Expression {
     // }
 }
 
-
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BinaryOperator {
     Add,
@@ -83,7 +82,7 @@ pub struct Assignment {
 #[derive(Debug, PartialEq, Clone)]
 pub enum AssignmentTarget {
     Identifier(String),
-    Dereference(Expression)
+    Dereference(Expression),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -262,18 +261,12 @@ fn build_assignment_target(pair: Pair<Rule>) -> Result<AssignmentTarget> {
     let first = pair.into_inner().next().unwrap();
 
     match first.as_rule() {
-        Rule::Identifier => {
-            Ok(AssignmentTarget::Identifier(
-                first.as_str().to_string()
-            ))
-        }
+        Rule::Identifier => Ok(AssignmentTarget::Identifier(first.as_str().to_string())),
 
-        Rule::Dereference => {
-            Ok(AssignmentTarget::Dereference(
-                build_dereference_target(first)?
-            ))
-        }
-        
+        Rule::Dereference => Ok(AssignmentTarget::Dereference(build_dereference_target(
+            first,
+        )?)),
+
         _ => unreachable!("{:?}", first.as_rule()),
     }
 }
@@ -294,7 +287,6 @@ fn build_dereference(pair: Pair<Rule>) -> Result<Expression> {
 
     Ok(Expression::Dereference(Box::new(expression)))
 }
-
 
 fn build_expression(pair: Pair<Rule>) -> Result<Expression> {
     build_addition(pair.into_inner().next().unwrap())
@@ -366,16 +358,14 @@ fn build_unary(pair: Pair<Rule>) -> Result<Expression> {
             let expression = build_unary(inner.into_inner().next().unwrap())?;
             Ok(Expression::Reference(Box::new(expression)))
         }
-        
+
         Rule::Dereference => build_dereference(inner),
 
         Rule::Postfix => build_postfix(inner),
 
-        _ => unreachable!("{:?}", inner.as_rule())
+        _ => unreachable!("{:?}", inner.as_rule()),
     }
-    
 }
-
 
 fn build_postfix(pair: Pair<Rule>) -> Result<Expression> {
     let mut inner = pair.into_inner();
