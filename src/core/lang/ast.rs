@@ -42,7 +42,8 @@ pub enum Expression {
         expression: Box<Expression>,
         field_identifier: String,
     },
-
+    Reference(Box<Expression>),
+    Dereference(Box<Expression>),
     // MethodCall {
     //     expression: Box<Expression>,
     //     method_identifier: String,
@@ -114,20 +115,22 @@ pub enum DataType {
     U32,
     S32,
     String,
+    Reference(Box<DataType>),
     UserDefined(String),
 }
 
 impl DataType {
     pub fn to_string(&self) -> String {
         match self {
-            Self::U32 => "u32",
-            Self::S32 => "s32",
-            Self::String => "string",
-            Self::UserDefined(user_defined_type) => user_defined_type,
+            Self::U32 => "u32".to_string(),
+            Self::S32 => "s32".to_string(),
+            Self::String => "string".to_string(),
+            Self::Reference(data_type) => format!("&{}", data_type.to_string()),
+            Self::UserDefined(user_defined_type) => user_defined_type.clone(),
         }
-        .to_string()
     }
 }
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct StructDefinition {
     pub identifier: String,
@@ -289,7 +292,7 @@ fn build_multiplication(pair: Pair<Rule>) -> Result<Expression> {
             .expect("multiplication operator must have a right-hand operand");
 
         let operator = match op.as_rule() {
-            Rule::Star => BinaryOperator::Multiply,
+            Rule::Multiply => BinaryOperator::Multiply,
             Rule::Slash => BinaryOperator::Divide,
             _ => unreachable!("{:?}", op.as_rule()),
         };
@@ -308,8 +311,25 @@ fn build_unary(pair: Pair<Rule>) -> Result<Expression> {
     assert_eq!(pair.as_rule(), Rule::Unary);
 
     let inner = pair.into_inner().next().unwrap();
-    build_postfix(inner)
+
+    match inner.as_rule() {
+        Rule::Reference => {
+            let expression = build_unary(inner.into_inner().next().unwrap())?;
+            Ok(Expression::Reference(Box::new(expression)))
+        }
+        
+        Rule::Dereference => {
+            let expression = build_unary(inner.into_inner().next().unwrap())?;
+            Ok(Expression::Dereference(Box::new(expression)))
+        }
+
+        Rule::Postfix => build_postfix(inner),
+
+        _ => unreachable!("{:?}", inner.as_rule())
+    }
+    
 }
+
 
 fn build_postfix(pair: Pair<Rule>) -> Result<Expression> {
     let mut inner = pair.into_inner();

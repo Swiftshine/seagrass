@@ -1,10 +1,8 @@
 use std::{collections::HashMap, rc::Rc};
 
 use crate::core::{
-    lang::ast::{FunctionDefinition, StructDefinition},
-    runtime::{
-        FunctionFrame, Runtime, RuntimeError, RuntimeFunction, RuntimeResult, RuntimeScope,
-        RuntimeScopeType, RuntimeValue,
+    lang::ast::{FunctionDefinition, StructDefinition}, runtime::{
+        FunctionFrame, Runtime, RuntimeError, RuntimeFunction, RuntimeResult, RuntimeScope, RuntimeScopeType, RuntimeValue, RuntimeVariable,
     },
 };
 
@@ -16,23 +14,23 @@ impl RuntimeScope {
         }
     }
 
-    pub fn get_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeValue> {
+    pub fn get_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeVariable> {
         self.variables
             .get(identifier)
             .ok_or(RuntimeError::VariableNotFound(identifier.to_string()))
     }
 
-    pub fn get_variable_mut(&mut self, identifier: &str) -> RuntimeResult<&mut RuntimeValue> {
+    pub fn get_variable_mut(&mut self, identifier: &str) -> RuntimeResult<&mut RuntimeVariable> {
         self.variables
             .get_mut(identifier)
             .ok_or(RuntimeError::VariableNotFound(identifier.to_string()))
     }
 
-    pub fn variables(&self) -> &HashMap<String, RuntimeValue> {
+    pub fn variables(&self) -> &HashMap<String, RuntimeVariable> {
         &self.variables
     }
 
-    pub fn variables_mut(&mut self) -> &mut HashMap<String, RuntimeValue> {
+    pub fn variables_mut(&mut self) -> &mut HashMap<String, RuntimeVariable> {
         &mut self.variables
     }
 }
@@ -72,7 +70,7 @@ impl Runtime {
             .ok_or(RuntimeError::FunctionNotInCallStack(identifier.to_string()))
     }
 
-    pub fn get_global_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeValue> {
+    pub fn get_global_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeVariable> {
         self.global_scope
             .variables()
             .get(identifier)
@@ -82,7 +80,7 @@ impl Runtime {
     pub fn get_global_variable_mut(
         &mut self,
         identifier: &str,
-    ) -> RuntimeResult<&mut RuntimeValue> {
+    ) -> RuntimeResult<&mut RuntimeVariable> {
         self.global_scope
             .variables_mut()
             .get_mut(identifier)
@@ -90,7 +88,7 @@ impl Runtime {
     }
 
     /// Within the current scope.
-    pub fn get_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeValue> {
+    pub fn get_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeVariable> {
         if let Some(frame) = self.call_stack.last() {
             if let Some(value) = frame.get_variable(identifier) {
                 return Ok(value);
@@ -101,7 +99,7 @@ impl Runtime {
     }
 
     /// Within the current scope.
-    pub fn get_variable_mut(&mut self, identifier: &str) -> RuntimeResult<&mut RuntimeValue> {
+    pub fn get_variable_mut(&mut self, identifier: &str) -> RuntimeResult<&mut RuntimeVariable> {
         let exists_locally = self
             .call_stack
             .last()

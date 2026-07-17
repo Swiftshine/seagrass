@@ -41,8 +41,8 @@ pub fn initialize_struct() -> Result<()> {
     let two = runtime
         .get_global_variable("annotated_initialization")?;
     
-    assert_eq!(one.struct_access("field_1")?, RuntimeValue::U32(1));
-    assert_eq!(two.struct_access("field_1")?, RuntimeValue::U32(2));
+    assert_eq!(one.value.struct_access("field_1")?, RuntimeValue::U32(1));
+    assert_eq!(two.value.struct_access("field_1")?, RuntimeValue::U32(2));
 
     Ok(())
 }
@@ -66,7 +66,7 @@ pub fn access_struct() -> Result<()> {
 
     let value = runtime.get_global_variable("my_value")?;
 
-    assert_eq!(*value, RuntimeValue::U32(2));
+    assert_eq!(value.value, RuntimeValue::U32(2));
     
     Ok(())
 }

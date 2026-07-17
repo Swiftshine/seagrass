@@ -55,23 +55,25 @@ ArgumentList = {
 }
 
 // Operators and tokens
-Plus   =  { "+" }
-Minus  =  { "-" }
-Star   =  { "*" }
-Slash  =  { "/" }
-Dot    = _{ "." }
-Comma  = _{ "," }
-Equals = _{ "=" }
-Colon  = _{ ":" }
+Plus            =  { "+" }
+Minus           =  { "-" }
+Star            =  { "*" }
+Multiply        =  { "*" } // <- this is explicitly for multiplication and nothing else
+Slash           =  { "/" }
+Dot             = _{ "." }
+Comma           = _{ "," }
+Equals          = _{ "=" }
+Colon           = _{ ":" }
 ScopeResolution = _{ "::" }
-LBrace = _{ "{" }
-RBrace = _{ "}" }
-LParen = _{ "(" }
-RParen = _{ ")" }
-LBracket = _{ "[" }
-RBracket = _{ "]" }
-Pound  = _{ "#" }
-Hashtag = _{ Pound }
+LBrace          = _{ "{" }
+RBrace          = _{ "}" }
+LParen          = _{ "(" }
+RParen          = _{ ")" }
+LBracket        = _{ "[" }
+RBracket        = _{ "]" }
+Pound           = _{ "#" }
+Hashtag         = _{ Pound }
+Ampersand       = _{ "&" }
 
 Identifier = @{
     (ASCII_ALPHA | "_") ~
@@ -87,8 +89,13 @@ BuiltinDataType = {
 }
 
 DataType = {
+    ReferenceType |
     BuiltinDataType |
     Identifier
+}
+
+ReferenceType = {
+    Ampersand ~ DataType
 }
 
 TypeAnnotation = {
@@ -171,18 +178,29 @@ Multiplication = {
 }
 
 MulOp = _{
-    Star | Slash
+    Multiply | Slash
 }
 
 Unary = {
+    Reference |
+    Dereference |
     Postfix
+}
+
+Reference = {
+    Ampersand ~ Unary
+}
+
+Dereference = {
+    Star ~ Unary
 }
 
 Postfix = {
     Atom ~ (PostfixOperation)*
 }
 
-PostfixOperation = {
+PostfixOperation = _{
+    MethodCall |
     FieldAccess
 }
 

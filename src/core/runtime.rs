@@ -1,12 +1,25 @@
 mod accessors;
 mod operators;
 
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::lang::ast::{
     Assignment, BinaryOperator, Block, DataType, Expression, FunctionDefinition, Program, Return,
     Statement, StructDefinition, StructInitialization, Value,
 };
+
+pub type RuntimeReference = Rc<RefCell<RuntimeValue>>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RuntimeVariable {
+    pub value: RuntimeValue
+}
+
+impl RuntimeVariable {
+    pub fn from_value(value: RuntimeValue) -> Self {
+        Self { value }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
@@ -18,6 +31,7 @@ pub enum RuntimeValue {
         definition: Rc<StructDefinition>,
         fields: HashMap<String, RuntimeValue>,
     },
+    Reference(RuntimeReference),
 }
 
 impl RuntimeValue {
@@ -27,7 +41,8 @@ impl RuntimeValue {
             Self::U32(_) => Ok(DataType::U32),
             Self::S32(_) => Ok(DataType::S32),
             Self::String(_) => Ok(DataType::String),
-            Self::Struct { definition, ..} => Ok(DataType::UserDefined(definition.identifier.clone()))
+            Self::Struct { definition, ..} => Ok(DataType::UserDefined(definition.identifier.clone())),
+            Self::Reference(value) => Ok(DataType::Reference(Box::new(value.borrow().data_type()?)))
         }
     }
 
@@ -49,7 +64,21 @@ impl RuntimeValue {
             }),
         }
     }
+
+    pub fn reference(self) -> RuntimeValue {
+        RuntimeValue::Reference(
+            Rc::new(RefCell::new(self))
+        )
+    }
+
+    pub fn dereference(&self) -> RuntimeResult<RuntimeValue> {
+        match self {
+            Self::Reference(value) => Ok(value.borrow().clone()),
+            _ => Ok(self.clone()),
+        }
+    }
 }
+
 
 pub type NativeFunction = fn(Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>;
 
@@ -148,7 +177,7 @@ pub enum RuntimeScopeType {
 #[derive(Debug, Clone)]
 pub struct RuntimeScope {
     _scope_type: RuntimeScopeType,
-    variables: HashMap<String, RuntimeValue>,
+    variables: HashMap<String, RuntimeVariable>,
 }
 
 #[derive(Clone, Copy)]
@@ -208,14 +237,14 @@ impl FunctionFrame {
         self.scopes.pop();
     }
 
-    pub fn get_variable_mut(&mut self, identifier: &str) -> Option<&mut RuntimeValue> {
+    pub fn get_variable_mut(&mut self, identifier: &str) -> Option<&mut RuntimeVariable> {
         self.scopes
             .iter_mut()
             .rev()
             .find_map(|scope| scope.variables_mut().get_mut(identifier))
     }
 
-    pub fn get_variable(&self, identifier: &str) -> Option<&RuntimeValue> {
+    pub fn get_variable(&self, identifier: &str) -> Option<&RuntimeVariable> {
         self.scopes
             .iter()
             .rev()
@@ -348,7 +377,7 @@ impl Runtime {
             self.assign_variable(ident, value);
         } else {
             // assign value to existing variable
-            *self.get_variable_mut(&ident)? = value;
+            *self.get_variable_mut(&ident)? = RuntimeVariable::from_value(value);
         }
 
         Ok(ControlFlow::Continue)
@@ -420,12 +449,12 @@ impl Runtime {
 
     fn assign_variable(&mut self, identifier: String, value: RuntimeValue) {
         if self.call_stack.is_empty() {
-            self.global_scope.variables_mut().insert(identifier, value);
+            self.global_scope.variables_mut().insert(identifier, RuntimeVariable::from_value(value));
         } else {
             self.current_frame_mut()
                 .current_scope_mut()
                 .variables_mut()
-                .insert(identifier, value);
+                .insert(identifier, RuntimeVariable::from_value(value));
         }
     }
 
@@ -515,6 +544,20 @@ impl Runtime {
                     })
                 }
             }
+
+            Expression::Reference(expression) => {
+                let value = self.evaluate_expression(expression)?;
+            
+                Ok(RuntimeValue::Reference(
+                    Rc::new(RefCell::new(value))
+                ))
+            }
+
+            Expression::Dereference(expression) => {
+                let value = self.evaluate_expression(expression)?;
+            
+                value.dereference()
+            }
         }
     }
 
@@ -600,7 +643,10 @@ impl Runtime {
 
             Value::String(string) => Ok(RuntimeValue::String(string.clone())),
 
-            Value::Identifier(name) => self.get_variable(name).cloned(),
+            Value::Identifier(name) => {
+                let var = self.get_variable(name)?;
+                Ok(var.value.clone())
+            }
         }
     }
 
