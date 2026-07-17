@@ -37,8 +37,8 @@ pub fn check_scopes() -> Result<()> {
         .current_scope()
         .get_variable("two")?;
 
-    assert!(matches!(one.value, RuntimeValue::S32(1)));
-    assert!(matches!(two.value, RuntimeValue::S32(2)));
+    assert!(matches!(one.borrow().value(), RuntimeValue::S32(1)));
+    assert!(matches!(two.borrow().value(), RuntimeValue::S32(2)));
 
     let one = runtime
         .get_dead_frame("main")?
@@ -49,11 +49,11 @@ pub fn check_scopes() -> Result<()> {
         .current_scope()
         .get_variable("two")?;
 
-    assert!(matches!(one.value, RuntimeValue::S32(1)));
-    assert!(matches!(two.value, RuntimeValue::S32(2)));
+    assert!(matches!(one.borrow().value(), RuntimeValue::S32(1)));
+    assert!(matches!(two.borrow().value(), RuntimeValue::S32(2)));
 
     let global_var = runtime.get_global_variable("global_var")?;
 
-    assert!(matches!(global_var.value, RuntimeValue::S32(123)));
+    assert!(matches!(global_var.borrow().value(), RuntimeValue::S32(123)));
     Ok(())
 }

@@ -1,8 +1,10 @@
 use std::{collections::HashMap, rc::Rc};
 
 use crate::core::{
-    lang::ast::{FunctionDefinition, StructDefinition}, runtime::{
-        FunctionFrame, Runtime, RuntimeError, RuntimeFunction, RuntimeResult, RuntimeScope, RuntimeScopeType, RuntimeValue, RuntimeVariable,
+    lang::ast::{FunctionDefinition, StructDefinition},
+    runtime::{
+        FunctionFrame, Runtime, RuntimeError, RuntimeFunction, RuntimeReference,
+        RuntimeResult, RuntimeScope, RuntimeScopeType, RuntimeValue,
     },
 };
 
@@ -14,23 +16,18 @@ impl RuntimeScope {
         }
     }
 
-    pub fn get_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeVariable> {
+    pub fn get_variable(&self, identifier: &str) -> RuntimeResult<RuntimeReference> {
         self.variables
             .get(identifier)
+            .cloned()
             .ok_or(RuntimeError::VariableNotFound(identifier.to_string()))
     }
 
-    pub fn get_variable_mut(&mut self, identifier: &str) -> RuntimeResult<&mut RuntimeVariable> {
-        self.variables
-            .get_mut(identifier)
-            .ok_or(RuntimeError::VariableNotFound(identifier.to_string()))
-    }
-
-    pub fn variables(&self) -> &HashMap<String, RuntimeVariable> {
+    pub fn variables(&self) -> &HashMap<String, RuntimeReference> {
         &self.variables
     }
 
-    pub fn variables_mut(&mut self) -> &mut HashMap<String, RuntimeVariable> {
+    pub fn variables_mut(&mut self) -> &mut HashMap<String, RuntimeReference> {
         &mut self.variables
     }
 }
@@ -70,48 +67,19 @@ impl Runtime {
             .ok_or(RuntimeError::FunctionNotInCallStack(identifier.to_string()))
     }
 
-    pub fn get_global_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeVariable> {
-        self.global_scope
-            .variables()
-            .get(identifier)
-            .ok_or(RuntimeError::VariableNotFound(identifier.to_owned()))
-    }
-
-    pub fn get_global_variable_mut(
-        &mut self,
-        identifier: &str,
-    ) -> RuntimeResult<&mut RuntimeVariable> {
-        self.global_scope
-            .variables_mut()
-            .get_mut(identifier)
-            .ok_or(RuntimeError::VariableNotFound(identifier.to_owned()))
+    pub fn get_global_variable(&self, identifier: &str) -> RuntimeResult<RuntimeReference> {
+        self.global_scope.get_variable(identifier)
     }
 
     /// Within the current scope.
-    pub fn get_variable(&self, identifier: &str) -> RuntimeResult<&RuntimeVariable> {
+    pub fn get_variable(&self, identifier: &str) -> RuntimeResult<RuntimeReference> {
         if let Some(frame) = self.call_stack.last() {
-            if let Some(value) = frame.get_variable(identifier) {
-                return Ok(value);
+            if let Some(variable) = frame.get_variable(identifier) {
+                return Ok(variable);
             }
         }
 
         self.get_global_variable(identifier)
-    }
-
-    /// Within the current scope.
-    pub fn get_variable_mut(&mut self, identifier: &str) -> RuntimeResult<&mut RuntimeVariable> {
-        let exists_locally = self
-            .call_stack
-            .last()
-            .and_then(|frame| frame.get_variable(identifier))
-            .is_some();
-
-        if exists_locally {
-            let frame = self.call_stack.last_mut().unwrap();
-            return Ok(frame.get_variable_mut(identifier).unwrap());
-        }
-
-        self.get_global_variable_mut(identifier)
     }
 
     pub fn functions(&self) -> &HashMap<String, RuntimeFunction> {
@@ -123,7 +91,7 @@ impl Runtime {
     }
 
     pub fn get_function(&self, identifier: &str) -> RuntimeResult<&RuntimeFunction> {
-        self.functions()
+        self.functions
             .get(identifier)
             .ok_or(RuntimeError::FunctionNotFound(identifier.to_string()))
     }
@@ -131,7 +99,6 @@ impl Runtime {
     pub fn get_user_function(&self, identifier: &str) -> RuntimeResult<&FunctionDefinition> {
         match self.get_function(identifier)? {
             RuntimeFunction::User(func) => Ok(func),
-
             RuntimeFunction::Native(_) => Err(RuntimeError::NotAUserDefinedFunction(
                 identifier.to_string(),
             )),
@@ -144,10 +111,9 @@ impl Runtime {
     ) -> RuntimeResult<fn(Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>> {
         match self.get_function(identifier)? {
             RuntimeFunction::Native(func) => Ok(*func),
-
-            RuntimeFunction::User(_) => {
-                Err(RuntimeError::NotANativeFunction(identifier.to_string()))
-            }
+            RuntimeFunction::User(_) => Err(RuntimeError::NotANativeFunction(
+                identifier.to_string(),
+            )),
         }
     }
 }

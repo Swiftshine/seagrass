@@ -75,9 +75,15 @@ pub struct StructFieldInitialization {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Assignment {
     pub declarative: bool,
-    pub identifier: String,
+    pub target: AssignmentTarget,
     pub data_type: Option<DataType>,
     pub expression: Expression,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum AssignmentTarget {
+    Identifier(String),
+    Dereference(Expression)
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -205,6 +211,8 @@ fn build_type_annotation(pair: Pair<Rule>) -> Result<DataType> {
 }
 
 fn build_declarative_assignment(pair: Pair<Rule>) -> Result<Assignment> {
+    assert_eq!(pair.as_rule(), Rule::DeclarativeAssignment);
+
     let mut inner = pair.into_inner();
 
     // KeywordLet
@@ -224,28 +232,69 @@ fn build_declarative_assignment(pair: Pair<Rule>) -> Result<Assignment> {
 
     Ok(Assignment {
         declarative: true,
-        identifier,
+        target: AssignmentTarget::Identifier(identifier),
         data_type,
         expression,
     })
 }
 
 fn build_reassignment(pair: Pair<Rule>) -> Result<Assignment> {
+    assert_eq!(pair.as_rule(), Rule::Reassignment);
+
     let mut inner = pair.into_inner();
 
-    // Identifier
-    let identifier = inner.next().unwrap().as_str().to_string();
+    let target = build_assignment_target(inner.next().unwrap())?;
 
     // Expression
     let expression = build_expression(inner.next().unwrap())?;
 
     Ok(Assignment {
         declarative: false,
-        identifier,
+        target,
         data_type: None,
         expression,
     })
 }
+
+fn build_assignment_target(pair: Pair<Rule>) -> Result<AssignmentTarget> {
+    assert_eq!(pair.as_rule(), Rule::AssignmentTarget);
+
+    let first = pair.into_inner().next().unwrap();
+
+    match first.as_rule() {
+        Rule::Identifier => {
+            Ok(AssignmentTarget::Identifier(
+                first.as_str().to_string()
+            ))
+        }
+
+        Rule::Dereference => {
+            Ok(AssignmentTarget::Dereference(
+                build_dereference_target(first)?
+            ))
+        }
+        
+        _ => unreachable!("{:?}", first.as_rule()),
+    }
+}
+
+fn build_dereference_target(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::Dereference);
+
+    let unary = pair.into_inner().next().unwrap();
+    build_unary(unary)
+}
+
+fn build_dereference(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::Dereference);
+
+    let mut inner = pair.into_inner();
+
+    let expression = build_unary(inner.next().unwrap())?;
+
+    Ok(Expression::Dereference(Box::new(expression)))
+}
+
 
 fn build_expression(pair: Pair<Rule>) -> Result<Expression> {
     build_addition(pair.into_inner().next().unwrap())
@@ -318,10 +367,7 @@ fn build_unary(pair: Pair<Rule>) -> Result<Expression> {
             Ok(Expression::Reference(Box::new(expression)))
         }
         
-        Rule::Dereference => {
-            let expression = build_unary(inner.into_inner().next().unwrap())?;
-            Ok(Expression::Dereference(Box::new(expression)))
-        }
+        Rule::Dereference => build_dereference(inner),
 
         Rule::Postfix => build_postfix(inner),
 

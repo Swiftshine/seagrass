@@ -18,7 +18,7 @@ pub fn check_main() -> Result<()> {
         .current_scope()
         .get_variable("my_ident")?;
 
-    assert!(matches!(variable.value, RuntimeValue::S32(123)));
+    assert!(matches!(variable.borrow().value(), RuntimeValue::S32(123)));
     Ok(())
 }
 
@@ -44,6 +44,6 @@ pub fn return_value() -> Result<()> {
         .current_scope()
         .get_variable("my_ident")?;
 
-    assert!(matches!(variable.value, RuntimeValue::S32(123)));
+    assert!(matches!(variable.borrow().value(), RuntimeValue::S32(123)));
     Ok(())
 }

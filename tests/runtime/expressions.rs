@@ -31,8 +31,8 @@ pub fn addition() -> Result<()> {
         .current_scope()
         .get_variable("result_minus")?;
 
-    assert!(matches!(result_plus.value, RuntimeValue::S32(3)));
-    assert!(matches!(result_minus.value, RuntimeValue::S32(1)));
+    assert!(matches!(result_plus.borrow().value(), RuntimeValue::S32(3)));
+    assert!(matches!(result_minus.borrow().value(), RuntimeValue::S32(1)));
     Ok(())
 }
 
@@ -55,7 +55,7 @@ pub fn multiplication() -> Result<()> {
         .current_scope()
         .get_variable("result_div")?;
 
-    assert!(matches!(result_mul.value, RuntimeValue::S32(6)));
-    assert!(matches!(result_div.value, RuntimeValue::S32(2)));
+    assert!(matches!(result_mul.borrow().value(), RuntimeValue::S32(6)));
+    assert!(matches!(result_div.borrow().value(), RuntimeValue::S32(2)));
     Ok(())
 }

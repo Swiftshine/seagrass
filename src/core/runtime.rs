@@ -4,11 +4,11 @@ mod operators;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::lang::ast::{
-    Assignment, BinaryOperator, Block, DataType, Expression, FunctionDefinition, Program, Return,
-    Statement, StructDefinition, StructInitialization, Value,
+    Assignment, AssignmentTarget, BinaryOperator, Block, DataType, Expression, FunctionDefinition, Program, Return, Statement, StructDefinition, StructInitialization, Value,
 };
 
-pub type RuntimeReference = Rc<RefCell<RuntimeValue>>;
+pub type RuntimeReference = Rc<RefCell<RuntimeVariable>>;
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuntimeVariable {
@@ -17,7 +17,17 @@ pub struct RuntimeVariable {
 
 impl RuntimeVariable {
     pub fn from_value(value: RuntimeValue) -> Self {
-        Self { value }
+        Self {
+            value
+        }
+    }
+
+    pub fn value(&self) -> RuntimeValue {
+        self.value.clone()
+    }
+
+    pub fn set_value(&mut self, value: RuntimeValue) {
+        self.value = value;
     }
 }
 
@@ -42,7 +52,7 @@ impl RuntimeValue {
             Self::S32(_) => Ok(DataType::S32),
             Self::String(_) => Ok(DataType::String),
             Self::Struct { definition, ..} => Ok(DataType::UserDefined(definition.identifier.clone())),
-            Self::Reference(value) => Ok(DataType::Reference(Box::new(value.borrow().data_type()?)))
+            Self::Reference(variable) => Ok(DataType::Reference(Box::new(variable.borrow().value().data_type()?)))
         }
     }
 
@@ -58,6 +68,10 @@ impl RuntimeValue {
                     })
             }
 
+            Self::Reference(_) => {
+                self.dereference()
+            }
+
             _ => Err(RuntimeError::InvalidStructFieldAccessTarget {
                 field: identifier.to_string(),
                 data_type: self.data_type()?.to_string(),
@@ -65,17 +79,32 @@ impl RuntimeValue {
         }
     }
 
-    pub fn reference(self) -> RuntimeValue {
-        RuntimeValue::Reference(
-            Rc::new(RefCell::new(self))
-        )
+    pub fn resolve(&self) -> RuntimeValue {
+        // this function should only be called for struct
+        match self {
+            Self::Reference(reference) => reference.borrow().value().resolve(),
+            _ => self.clone()
+        }
     }
+
+    // pub fn reference(self) -> RuntimeValue {
+    //     RuntimeValue::Reference(
+    //         Rc::new(RefCell::new(self))
+    //     )
+    // }
 
     pub fn dereference(&self) -> RuntimeResult<RuntimeValue> {
         match self {
-            Self::Reference(value) => Ok(value.borrow().clone()),
+            RuntimeValue::Reference(variable) => {
+                Ok(variable.borrow().value().clone())
+            }
+
             _ => Ok(self.clone()),
         }
+    }
+
+    pub fn is_reference(&self) -> bool {
+        matches!(self, Self::Reference(_))
     }
 }
 
@@ -110,6 +139,8 @@ pub enum RuntimeError {
     },
     #[error("Struct definition '{0}' not found")]
     StructDefinitionNotFound(String),
+    #[error("Expected reference, found '{0}'")]
+    ExpectedReference(String),
 
     // Mismatches
     #[error("Unsupported binary operation for '[{lhs_type}] {operation} [{rhs_type}]'")]
@@ -125,8 +156,9 @@ pub enum RuntimeError {
     },
     #[error("Identifier '{0}' already defined as a {1}")]
     AlreadyDefined(String, &'static str),
+    #[error("Invalid reference target")]
+    InvalidReferenceTarget,
 
-    
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]
     IncompleteStructInitialization(String),
@@ -177,7 +209,7 @@ pub enum RuntimeScopeType {
 #[derive(Debug, Clone)]
 pub struct RuntimeScope {
     _scope_type: RuntimeScopeType,
-    variables: HashMap<String, RuntimeVariable>,
+    variables: HashMap<String, RuntimeReference>,
 }
 
 #[derive(Clone, Copy)]
@@ -237,18 +269,18 @@ impl FunctionFrame {
         self.scopes.pop();
     }
 
-    pub fn get_variable_mut(&mut self, identifier: &str) -> Option<&mut RuntimeVariable> {
-        self.scopes
-            .iter_mut()
-            .rev()
-            .find_map(|scope| scope.variables_mut().get_mut(identifier))
-    }
-
-    pub fn get_variable(&self, identifier: &str) -> Option<&RuntimeVariable> {
+    pub fn get_variable(&self, identifier: &str) -> Option<RuntimeReference> {
         self.scopes
             .iter()
             .rev()
-            .find_map(|scope| scope.variables().get(identifier))
+            .find_map(|scope| scope.variables().get(identifier).cloned())
+    }
+    
+    pub fn get_variable_mut(&mut self, identifier: &str) -> Option<RuntimeReference> {
+        self.scopes
+            .iter_mut()
+            .rev()
+            .find_map(|scope| scope.variables().get(identifier).cloned())
     }
 }
 
@@ -363,23 +395,23 @@ impl Runtime {
 
     fn execute_assignment(&mut self, assignment: &Assignment) -> StatementResult {
         let mut value = self.evaluate_expression(&assignment.expression)?;
-
+    
         if let Some(expected_type) = &assignment.data_type {
             value = self.apply_type_annotation(value, expected_type)?;
         }
-
-        let ident = assignment.identifier.clone();
-
-        self.validate_identifier(&ident)?;
-
+    
         if assignment.declarative {
-            // create a new variable
-            self.assign_variable(ident, value);
+            match &assignment.target {
+                AssignmentTarget::Identifier(ident) => {
+                    self.assign_variable(ident.clone(), value);
+                }
+    
+                _ => unreachable!("invalid declarative assignment target"),
+            }
         } else {
-            // assign value to existing variable
-            *self.get_variable_mut(&ident)? = RuntimeVariable::from_value(value);
+            self.assign_to_target(&assignment.target, value)?;
         }
-
+    
         Ok(ControlFlow::Continue)
     }
 
@@ -448,14 +480,48 @@ impl Runtime {
     // }
 
     fn assign_variable(&mut self, identifier: String, value: RuntimeValue) {
+        let variable = Rc::new(RefCell::new(RuntimeVariable::from_value(value)));
+    
         if self.call_stack.is_empty() {
-            self.global_scope.variables_mut().insert(identifier, RuntimeVariable::from_value(value));
+            self.global_scope
+                .variables_mut()
+                .insert(identifier, variable);
         } else {
             self.current_frame_mut()
                 .current_scope_mut()
                 .variables_mut()
-                .insert(identifier, RuntimeVariable::from_value(value));
+                .insert(identifier, variable);
         }
+    }
+
+    fn assign_to_target(
+        &mut self,
+        target: &AssignmentTarget,
+        value: RuntimeValue
+    ) -> RuntimeResult<()> {
+        match target {
+            AssignmentTarget::Identifier(name) => {
+                let variable = self.get_variable(name)?;
+                variable.borrow_mut().set_value(value);
+            }
+    
+            AssignmentTarget::Dereference(expression) => {
+                let reference = self.evaluate_expression(expression)?;
+        
+                
+                match reference {
+                    RuntimeValue::Reference(reference) => {
+                        *reference.borrow_mut() = RuntimeVariable::from_value(value);
+                    }
+    
+                    other => {
+                        return Err(RuntimeError::ExpectedReference(other.data_type()?.to_string()))
+                    }
+                }
+            }
+        }
+    
+        Ok(())
     }
 
     fn define_function(&mut self, func: &FunctionDefinition) -> StatementResult {
@@ -528,7 +594,7 @@ impl Runtime {
             Expression::StructInitialization(init) => self.initialize_struct(init),
 
             Expression::StructFieldAccess { expression, field_identifier: field } => {
-                let value = self.evaluate_expression(expression)?;
+                let value = self.evaluate_expression(expression)?.resolve();
 
                 match value {
                     RuntimeValue::Struct { definition, fields } => {
@@ -546,16 +612,19 @@ impl Runtime {
             }
 
             Expression::Reference(expression) => {
-                let value = self.evaluate_expression(expression)?;
+                match expression.as_ref() {
+                    Expression::Value(Value::Identifier(identifier)) => {
+                        let variable = self.get_variable(identifier)?;
+                        
+                        Ok(RuntimeValue::Reference(variable))
+                    }
             
-                Ok(RuntimeValue::Reference(
-                    Rc::new(RefCell::new(value))
-                ))
+                    _ => Err(RuntimeError::InvalidReferenceTarget)
+                }
             }
 
             Expression::Dereference(expression) => {
                 let value = self.evaluate_expression(expression)?;
-            
                 value.dereference()
             }
         }
@@ -645,7 +714,7 @@ impl Runtime {
 
             Value::Identifier(name) => {
                 let var = self.get_variable(name)?;
-                Ok(var.value.clone())
+                Ok(var.borrow().value())
             }
         }
     }

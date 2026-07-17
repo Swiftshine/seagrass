@@ -57,7 +57,7 @@ ArgumentList = {
 // Operators and tokens
 Plus            =  { "+" }
 Minus           =  { "-" }
-Star            =  { "*" }
+Star            =  _{ "*" }
 Multiply        =  { "*" } // <- this is explicitly for multiplication and nothing else
 Slash           =  { "/" }
 Dot             = _{ "." }
@@ -149,7 +149,12 @@ DeclarativeAssignment = {
 }
 
 Reassignment = {
-    Identifier ~ Equals ~ Expression
+    AssignmentTarget ~ Equals ~ Expression
+}
+
+AssignmentTarget = {
+    Dereference |
+    Identifier
 }
 
 Assignment = {
