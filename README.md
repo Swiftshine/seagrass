@@ -16,7 +16,6 @@ struct StructOne {
 struct StructTwo {
     field_1: u32
 }
-
 ```
 
 *All* fields within a serializable POD struct must be serializable themselves, including sub-structs.
