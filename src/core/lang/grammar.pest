@@ -21,7 +21,9 @@ Keyword = {
     KeywordStruct |
     KeywordImpl |
     KeywordIf |
-    KeywordElse
+    KeywordElse |
+    KeywordTrue |
+    KeywordFalse
 }
 
 KeywordFn = @{ "fn" ~ KeywordBoundary }
@@ -31,6 +33,8 @@ KeywordStruct = @{ "struct" ~ KeywordBoundary }
 KeywordImpl = @{ "impl" ~ KeywordBoundary }
 KeywordIf = @{ "if" ~ KeywordBoundary }
 KeywordElse = @{ "else" ~ KeywordBoundary }
+KeywordTrue  = @{ "true" ~ KeywordBoundary }
+KeywordFalse = @{ "false" ~ KeywordBoundary }
 
 // Execution
 Block = {
@@ -86,6 +90,7 @@ NotEqualTo      = { "!=" }
 GreaterThanOrEqualTo = { ">=" }
 LessThanOrEqualTo = { "<=" }
 
+
 ComparisonOp = _{
     GreaterThanOrEqualTo |
     LessThanOrEqualTo |
@@ -105,7 +110,7 @@ QualifiedIdentifier = {
 }
 
 BuiltinDataType = {
-    "u32" | "s32" | "string"
+    "u32" | "s32" | "string" | "bool"
 }
 
 DataType = {
@@ -125,6 +130,10 @@ TypeAnnotation = {
 Integer = @{
     HexadecimalInteger |
     DecimalInteger
+}
+
+Bool = {
+    KeywordTrue | KeywordFalse
 }
 
 HexadecimalInteger = @{ ("0x" | "0X") ~ ASCII_HEX_DIGIT+ }
@@ -150,9 +159,10 @@ EscapeSequence = {
 }
 
 Value = {
-    Identifier |
+    Bool |
     Integer |
-    String
+    String |
+    Identifier
 }
 
 Statement = {

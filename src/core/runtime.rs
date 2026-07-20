@@ -148,8 +148,10 @@ pub enum RuntimeError {
         operation: &'static str,
         rhs_type: String,
     },
-    #[error("Type mismatch (expected '{expected}', found '{found}')")]
-    TypeMismatch { expected: String, found: String },
+    #[error(
+        "Failed to apply type annotation (expected annotated type '{expected}', but the assigned value resolved to '{found}')"
+    )]
+    AnnotationError { expected: String, found: String },
     #[error("Identifier '{0}' already defined as a {1}")]
     AlreadyDefined(String, &'static str),
     #[error("Invalid reference target")]
@@ -426,6 +428,8 @@ impl Runtime {
 
             (RuntimeValue::S32(i), DataType::U32) if i >= 0 => Ok(RuntimeValue::U32(i as u32)),
 
+            (RuntimeValue::Bool(b), DataType::Bool) => Ok(RuntimeValue::Bool(b)),
+
             (value, DataType::UserDefined(expected))
                 if value.data_type()?.to_string() == *expected =>
             {
@@ -433,7 +437,7 @@ impl Runtime {
             }
 
             // todo: handle type annotations of struct initialization
-            _ => Err(RuntimeError::TypeMismatch {
+            _ => Err(RuntimeError::AnnotationError {
                 expected: expected.to_string(),
                 found: value_data_type_string,
             }),
@@ -665,7 +669,7 @@ impl Runtime {
 
                 let value = match self.apply_type_annotation(value, &field_definition.data_type) {
                     Ok(value) => value,
-                    Err(RuntimeError::TypeMismatch { expected, found }) => {
+                    Err(RuntimeError::AnnotationError { expected, found }) => {
                         return Err(RuntimeError::InvalidStructFieldInitialization {
                             field_name: field_definition.identifier.clone(),
                             struct_name: definition.identifier.clone(),
@@ -712,6 +716,8 @@ impl Runtime {
             Value::U32(i) => Ok(RuntimeValue::U32(*i)),
 
             Value::String(string) => Ok(RuntimeValue::String(string.clone())),
+
+            Value::Bool(b) => Ok(RuntimeValue::Bool(*b)),
 
             Value::Identifier(name) => {
                 let var = self.get_variable(name)?;

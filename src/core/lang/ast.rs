@@ -112,6 +112,7 @@ pub enum Value {
     S32(i32),
     U32(u32),
     String(String),
+    Bool(bool),
     Identifier(String),
 }
 

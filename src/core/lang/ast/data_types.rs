@@ -37,6 +37,16 @@ pub fn build_value(pair: Pair<Rule>) -> Result<Value> {
             Ok(Value::S32(value))
         }
 
+        Rule::Bool => {
+            let rule = inner.into_inner().next().unwrap().as_rule();
+
+            match rule {
+                Rule::KeywordTrue => Ok(Value::Bool(true)),
+                Rule::KeywordFalse => Ok(Value::Bool(false)),
+                _ => unreachable!("{:?}", rule),
+            }
+        }
+
         _ => unreachable!("{:?}", inner.as_rule()),
     }
 }
@@ -46,6 +56,7 @@ pub fn build_data_type(pair: Pair<Rule>) -> Result<DataType> {
         "u32" => Ok(DataType::U32),
         "s32" => Ok(DataType::S32),
         "string" => Ok(DataType::String),
+        "bool" => Ok(DataType::Bool),
         other => Ok(DataType::UserDefined(other.to_string())),
     }
 }
