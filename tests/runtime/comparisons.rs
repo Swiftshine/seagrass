@@ -60,7 +60,7 @@ pub fn compare_structs() -> Result<()> {
 
     let runtime = execute_source(&source, &vec![])?;
     let result = runtime.get_variable("result");
-    assert!(result.is_err()); // the variable "result" will not exisst due to the runtime failing
+    assert!(result.is_err()); // the variable "result" will not exist due to the runtime failing
 
     Ok(())
 }
