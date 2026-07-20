@@ -102,7 +102,7 @@ impl RuntimeValue {
 
                 compare(fields_a == fields_b)
             }
-            // otherwise the default is always good
+
             _ => Err(RuntimeError::unsupported_binary_operation(
                 lhs_type, "==", rhs_type,
             )),
@@ -110,12 +110,47 @@ impl RuntimeValue {
     }
 
     pub fn compare_neq(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let result = Self::compare_eq(self, rhs)?;
+        let lhs_type = self.data_type()?.to_string();
+        let rhs_type = rhs.data_type()?.to_string();
 
-        let Self::Bool(result) = result else {
-            panic!("RuntimeValue::compare_eq should return a boolean RuntimeValue")
-        };
+        let compare = |result: bool| Ok(Self::Bool(result));
 
-        Ok(Self::Bool(!result))
+        match (self, rhs) {
+            // coerece types
+            (Self::S32(a), Self::U32(b)) => compare(a != b as i32),
+            (Self::U32(a), Self::S32(b)) => compare(a != b as u32),
+
+            // primitives
+            (Self::S32(a), Self::S32(b)) => compare(a != b),
+            (Self::U32(a), Self::U32(b)) => compare(a != b),
+            (Self::Bool(a), Self::Bool(b)) => compare(a != b),
+            (Self::String(a), Self::String(b)) => compare(a != b),
+            (
+                Self::Struct {
+                    definition: def_a,
+                    fields: fields_a,
+                },
+                Self::Struct {
+                    definition: def_b,
+                    fields: fields_b,
+                },
+            ) => {
+                // check if they're even the same struct
+                if def_a != def_b {
+                    return Err(RuntimeError::InvalidStructComparison(
+                        def_a.identifier.clone(),
+                        def_b.identifier.clone(),
+                    ));
+                }
+
+                // go through the fields and see if they're equal
+
+                compare(fields_a != fields_b)
+            }
+
+            _ => Err(RuntimeError::unsupported_binary_operation(
+                lhs_type, "!=", rhs_type,
+            )),
+        }
     }
 }

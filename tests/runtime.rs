@@ -1,5 +1,6 @@
 mod runtime {
     mod assignments;
+    mod comparisons;
     mod expressions;
     mod functions;
     mod references;
