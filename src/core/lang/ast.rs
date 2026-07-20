@@ -53,10 +53,16 @@ pub enum Expression {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BinaryOperator {
+    // arithmetic
     Add,
     Subtract,
     Multiply,
     Divide,
+
+    // comparison
+    EqualTo,
+    NotEqualTo,
+    // todo: bitwise
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -120,6 +126,7 @@ pub enum DataType {
     U32,
     S32,
     String,
+    Bool,
     Reference(Box<DataType>),
     UserDefined(String),
 }
@@ -130,6 +137,7 @@ impl DataType {
             Self::U32 => "u32".to_string(),
             Self::S32 => "s32".to_string(),
             Self::String => "string".to_string(),
+            Self::Bool => "bool".to_string(),
             Self::Reference(data_type) => format!("&{}", data_type.to_string()),
             Self::UserDefined(user_defined_type) => user_defined_type.clone(),
         }
@@ -289,7 +297,36 @@ fn build_dereference(pair: Pair<Rule>) -> Result<Expression> {
 }
 
 fn build_expression(pair: Pair<Rule>) -> Result<Expression> {
-    build_addition(pair.into_inner().next().unwrap())
+    build_comparison(pair.into_inner().next().unwrap())
+}
+
+fn build_comparison(pair: Pair<Rule>) -> Result<Expression> {
+    let mut inner = pair.into_inner();
+
+    let mut expr = build_addition(inner.next().unwrap())?;
+
+    while let Some(op) = inner.next() {
+        let rhs = build_addition(
+            inner
+                .next()
+                .expect("operator must have a right-hand operand"),
+        )?;
+
+        let operator = match op.as_rule() {
+            Rule::EqualTo => BinaryOperator::EqualTo,
+            Rule::NotEqualTo => BinaryOperator::NotEqualTo,
+
+            _ => unreachable!("{:?}", op.as_rule()),
+        };
+
+        expr = Expression::Binary {
+            lhs: Box::new(expr),
+            operator,
+            rhs: Box::new(rhs),
+        };
+    }
+
+    Ok(expr)
 }
 
 fn build_addition(pair: Pair<Rule>) -> Result<Expression> {

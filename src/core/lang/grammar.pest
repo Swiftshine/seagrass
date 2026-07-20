@@ -12,13 +12,16 @@ Program = {
     Statement* ~
     EOI
 }
+
 // Keywords
 Keyword = {
     KeywordFn |
     KeywordLet |
     KeywordReturn |
     KeywordStruct |
-    KeywordImpl
+    KeywordImpl |
+    KeywordIf |
+    KeywordElse
 }
 
 KeywordFn = @{ "fn" ~ KeywordBoundary }
@@ -26,6 +29,8 @@ KeywordLet = @{ "let" ~ KeywordBoundary }
 KeywordReturn = @{ "return" ~ KeywordBoundary }
 KeywordStruct = @{ "struct" ~ KeywordBoundary }
 KeywordImpl = @{ "impl" ~ KeywordBoundary }
+KeywordIf = @{ "if" ~ KeywordBoundary }
+KeywordElse = @{ "else" ~ KeywordBoundary }
 
 // Execution
 Block = {
@@ -74,6 +79,21 @@ RBracket        = _{ "]" }
 Pound           = _{ "#" }
 Hashtag         = _{ Pound }
 Ampersand       = _{ "&" }
+GreaterThan     = { ">" }
+LessThan        = { "<" }
+EqualTo         = { "==" }
+NotEqualTo      = { "!=" }
+GreaterThanOrEqualTo = { ">=" }
+LessThanOrEqualTo = { "<=" }
+
+ComparisonOp = _{
+    GreaterThanOrEqualTo |
+    LessThanOrEqualTo |
+    EqualTo |
+    NotEqualTo |
+    GreaterThan |
+    LessThan
+}
 
 Identifier = @{
     (ASCII_ALPHA | "_") ~
@@ -136,12 +156,27 @@ Value = {
 }
 
 Statement = {
+    ElseIfStatement |
+    IfStatement |
+    ElseStatement |
     StructImplBlock |
     FunctionDefinition |
     StructDefinition |
     Assignment ~ EOL |
     Return ~ EOL |
     Expression ~ EOL
+}
+
+IfStatement = {
+    KeywordIf ~ Comparison ~ Block
+}
+
+ElseIfStatement = {
+    KeywordElse ~ IfStatement
+}
+
+ElseStatement = {
+    KeywordElse ~ Block
 }
 
 DeclarativeAssignment = {
@@ -167,7 +202,11 @@ Return = {
 }
 
 Expression = {
-    Addition
+    Comparison
+}
+
+Comparison = {
+    Addition ~ (ComparisonOp ~ Addition)*
 }
 
 Addition = {
@@ -222,7 +261,7 @@ Atom = {
     StructInitialization |
     FunctionCall |
     Value |
-    LParen ~ Expression ~ RParen
+    (LParen ~ Expression ~ RParen)
 }
 
 StructInitialization = {

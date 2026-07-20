@@ -35,6 +35,7 @@ pub enum RuntimeValue {
     U32(u32),
     S32(i32),
     String(String),
+    Bool(bool),
     Struct {
         definition: Rc<StructDefinition>,
         fields: HashMap<String, RuntimeValue>,
@@ -49,6 +50,7 @@ impl RuntimeValue {
             Self::U32(_) => Ok(DataType::U32),
             Self::S32(_) => Ok(DataType::S32),
             Self::String(_) => Ok(DataType::String),
+            Self::Bool(_) => Ok(DataType::Bool),
             Self::Struct { definition, .. } => {
                 Ok(DataType::UserDefined(definition.identifier.clone()))
             }
@@ -152,6 +154,8 @@ pub enum RuntimeError {
     AlreadyDefined(String, &'static str),
     #[error("Invalid reference target")]
     InvalidReferenceTarget,
+    #[error("Cannot compare structs of type '{0}' and '{1}'")]
+    InvalidStructComparison(String, String),
 
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]
@@ -696,6 +700,8 @@ impl Runtime {
             BinaryOperator::Subtract => lhs.subtract(rhs),
             BinaryOperator::Multiply => lhs.multiply(rhs),
             BinaryOperator::Divide => lhs.divide(rhs),
+            BinaryOperator::EqualTo => lhs.compare_eq(rhs),
+            BinaryOperator::NotEqualTo => lhs.compare_neq(rhs),
         }
     }
 
