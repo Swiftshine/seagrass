@@ -73,11 +73,10 @@ impl Runtime {
 
     /// Within the current scope.
     pub fn get_variable(&self, identifier: &str) -> RuntimeResult<RuntimeReference> {
-        if let Some(frame) = self.call_stack.last() {
-            if let Some(variable) = frame.get_variable(identifier) {
+        if let Some(frame) = self.call_stack.last()
+            && let Some(variable) = frame.get_variable(identifier) {
                 return Ok(variable);
             }
-        }
 
         self.get_global_variable(identifier)
     }

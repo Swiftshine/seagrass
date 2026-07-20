@@ -177,8 +177,7 @@ pub fn build_program(pair: Pair<Rule>) -> Result<Program> {
     let statements = pair
         .into_inner()
         .filter(|p| p.as_rule() == Rule::Statement)
-        .map(build_statement)
-        .flatten()
+        .flat_map(build_statement)
         .collect();
 
     Ok(Program { statements })

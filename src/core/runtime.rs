@@ -293,6 +293,12 @@ pub struct Runtime {
     config: RuntimeConfig,
 }
 
+impl Default for Runtime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Runtime {
     pub fn new() -> Self {
         Self {
@@ -335,11 +341,10 @@ impl Runtime {
     }
 
     pub fn pop_frame(&mut self) {
-        if let Some(frame) = self.call_stack.pop() {
-            if self.config.preserve_expired_frames {
+        if let Some(frame) = self.call_stack.pop()
+            && self.config.preserve_expired_frames {
                 self.dead_frames.push(frame);
             }
-        }
     }
 
     pub fn execute(&mut self, program: &Program) -> RuntimeResult<()> {
@@ -648,7 +653,7 @@ impl Runtime {
             if init
                 .initialized_fields
                 .iter()
-                .find(|f| &f.identifier == &field_definition.identifier)
+                .find(|f| f.identifier == field_definition.identifier)
                 .is_none()
             {
                 if self.config.error_on_incomplete_struct_initialization {
@@ -662,7 +667,7 @@ impl Runtime {
                 let initialized_field = init
                     .initialized_fields
                     .iter()
-                    .find(|f| &f.identifier == &field_definition.identifier)
+                    .find(|f| f.identifier == field_definition.identifier)
                     .unwrap();
 
                 let value = self.evaluate_expression(&initialized_field.expression)?;
