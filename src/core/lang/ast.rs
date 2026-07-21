@@ -19,6 +19,7 @@ pub enum Statement {
     Expression(Expression),
     FunctionDefinition(FunctionDefinition),
     Return(Return),
+    Break,
     StructDefinition(StructDefinition),
     ControlStatement(ControlStatement),
 }
@@ -177,6 +178,9 @@ pub enum ControlStatement {
         expression: Expression,
         block: Block,
     },
+    Loop {
+        block: Block,
+    },
 }
 
 impl ControlStatement {
@@ -198,6 +202,10 @@ impl ControlStatement {
 
     fn build_while(expression: Expression, block: Block) -> Self {
         Self::While { expression, block }
+    }
+
+    fn build_loop(block: Block) -> Self {
+        Self::Loop { block }
     }
 }
 
@@ -241,8 +249,24 @@ fn build_statement(pair: Pair<Rule>) -> Result<Statement> {
         Rule::StructDefinition => Ok(Statement::StructDefinition(build_struct_definition(inner)?)),
         Rule::IfStatement => Ok(Statement::ControlStatement(build_if_statement(inner)?)),
         Rule::WhileStatement => Ok(Statement::ControlStatement(build_while_statement(inner)?)),
+        Rule::LoopStatement => Ok(Statement::ControlStatement(build_loop_statement(inner)?)),
+        Rule::BreakStatement => Ok(Statement::Break),
         _ => unreachable!("{:?}", inner.as_rule()),
     }
+}
+
+fn build_loop_statement(pair: Pair<Rule>) -> Result<ControlStatement> {
+    assert_eq!(pair.as_rule(), Rule::LoopStatement);
+
+    let mut inner = pair.into_inner();
+
+    // KeywordLoop
+    inner.next();
+
+    // Block
+    let block = build_block(inner.next().unwrap())?;
+
+    Ok(ControlStatement::build_loop(block))
 }
 
 fn build_while_statement(pair: Pair<Rule>) -> Result<ControlStatement> {

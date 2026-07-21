@@ -12,6 +12,7 @@ control flow (if/else statements, loops...)
 
 - [x] If statements
 - [x] While loops
+- [x] Unconditional loops
 - [ ] For loops
 
 struct impl blocks

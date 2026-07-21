@@ -54,3 +54,24 @@ pub fn while_statements() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+pub fn loop_statements() -> Result<()> {
+    let source = "
+        let val = 5;
+
+        loop {
+            val = val - 1;
+
+            if val == 0 {
+                break;
+            }
+        }
+    ";
+
+    let val = execute_source(source, &vec![])?.get_global_variable("val")?;
+
+    assert_eq!(val.borrow().value(), RuntimeValue::S32(0));
+
+    Ok(())
+}

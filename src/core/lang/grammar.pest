@@ -24,7 +24,8 @@ Keyword = {
     KeywordElse |
     KeywordTrue |
     KeywordFalse |
-    KeywordWhile
+    KeywordWhile |
+    KeywordBreak
 }
 
 KeywordFn = @{ "fn" ~ KeywordBoundary }
@@ -37,6 +38,8 @@ KeywordElse = @{ "else" ~ KeywordBoundary }
 KeywordTrue  = @{ "true" ~ KeywordBoundary }
 KeywordFalse = @{ "false" ~ KeywordBoundary }
 KeywordWhile = @{ "while" ~ KeywordBoundary }
+KeywordLoop = @{ "loop" ~ KeywordBoundary }
+KeywordBreak = @{ "break" ~ KeywordBoundary }
 
 // Execution
 Block = {
@@ -168,6 +171,7 @@ Value = {
 }
 
 Statement = {
+    LoopStatement |
     IfStatement |
     WhileStatement |
     StructImplBlock |
@@ -175,7 +179,16 @@ Statement = {
     StructDefinition |
     Assignment ~ EOL |
     Return ~ EOL |
+    BreakStatement ~ EOL |
     Expression ~ EOL
+}
+
+BreakStatement = {
+    KeywordBreak
+}
+
+LoopStatement = {
+    KeywordLoop ~ Block
 }
 
 IfStatement = {

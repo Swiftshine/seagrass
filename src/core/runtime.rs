@@ -195,6 +195,7 @@ impl RuntimeError {
 pub enum ControlFlow {
     Continue,
     Return(RuntimeValue),
+    Break,
 }
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
@@ -402,6 +403,8 @@ impl Runtime {
                 self.execute_control_statement(control_statement)
             }
 
+            Statement::Break => Ok(ControlFlow::Break),
+
             _ => unreachable!("{:?}", statement),
         }
     }
@@ -419,13 +422,31 @@ impl Runtime {
 
             ControlStatement::While { expression, block } => self.execute_while(expression, block),
 
+            ControlStatement::Loop { block } => self.execute_loop(block),
+
             _ => unreachable!("{:?}", control_statement),
         }
     }
 
+    fn execute_loop(&mut self, block: &Block) -> StatementResult {
+        loop {
+            let flow = self.execute_block(block)?;
+
+            if matches!(flow, ControlFlow::Break) {
+                break;
+            }
+        }
+
+        Ok(ControlFlow::Continue)
+    }
+
     fn execute_while(&mut self, expression: &Expression, block: &Block) -> StatementResult {
         while self.evaluate_boolean_expression(expression)? {
-            self.execute_block(block)?;
+            let flow = self.execute_block(block)?;
+
+            if matches!(flow, ControlFlow::Break) {
+                break;
+            }
         }
 
         Ok(ControlFlow::Continue)
@@ -440,8 +461,7 @@ impl Runtime {
         // execute our statement first
 
         if self.evaluate_boolean_expression(expression)? {
-            self.execute_block(block)?;
-            return Ok(ControlFlow::Continue);
+            return self.execute_block(block);
         }
 
         // check children
@@ -540,21 +560,23 @@ impl Runtime {
             match self.execute_statement(statement)? {
                 ControlFlow::Continue => {}
                 flow @ ControlFlow::Return(_) => return Ok(flow),
+                _ => unreachable!("{:?}", statement),
             }
         }
 
         Ok(ControlFlow::Continue)
     }
 
-    // keeping this for now for control statements
     fn execute_block(&mut self, block: &Block) -> StatementResult {
         self.push_scope();
 
         let result = (|| {
             for statement in &block.statements {
-                match self.execute_statement(statement)? {
+                let flow = self.execute_statement(statement)?;
+
+                match flow {
                     ControlFlow::Continue => {}
-                    flow @ ControlFlow::Return(_) => return Ok(flow),
+                    ControlFlow::Return(_) | ControlFlow::Break => return Ok(flow),
                 }
             }
 
@@ -679,6 +701,7 @@ impl Runtime {
                 match result? {
                     ControlFlow::Continue => Ok(RuntimeValue::None),
                     ControlFlow::Return(value) => Ok(value),
+                    _ => unreachable!("expected ControlFlow::Continue or ControlFlow::Return"),
                 }
             }
         }
