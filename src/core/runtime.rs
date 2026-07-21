@@ -288,6 +288,7 @@ impl FunctionFrame {
 #[derive(Debug)]
 pub struct Runtime {
     global_scope: RuntimeScope,
+    global_sub_scopes: Vec<RuntimeScope>,
     call_stack: Vec<FunctionFrame>,
     dead_frames: Vec<FunctionFrame>,
     functions: HashMap<String, RuntimeFunction>,
@@ -305,6 +306,7 @@ impl Runtime {
     pub fn new() -> Self {
         Self {
             global_scope: RuntimeScope::new(RuntimeScopeType::Global),
+            global_sub_scopes: Vec::new(),
             call_stack: Vec::new(),
             dead_frames: Vec::new(),
             functions: HashMap::new(),
@@ -536,7 +538,7 @@ impl Runtime {
 
     // keeping this for now for control statements
     fn execute_block(&mut self, block: &Block) -> StatementResult {
-        self.current_frame_mut().push_scope();
+        self.push_scope();
 
         let result = (|| {
             for statement in &block.statements {
@@ -549,7 +551,7 @@ impl Runtime {
             Ok(ControlFlow::Continue)
         })();
 
-        self.current_frame_mut().pop_scope();
+        self.pop_scope();
 
         result
     }
@@ -558,14 +560,39 @@ impl Runtime {
         let variable = Rc::new(RefCell::new(RuntimeVariable::from_value(value)));
 
         if self.call_stack.is_empty() {
-            self.global_scope
-                .variables_mut()
-                .insert(identifier, variable);
+            if !self.global_sub_scopes.is_empty() {
+                self.global_sub_scopes
+                    .last_mut()
+                    .unwrap()
+                    .variables_mut()
+                    .insert(identifier, variable);
+            } else {
+                self.global_scope
+                    .variables_mut()
+                    .insert(identifier, variable);
+            }
         } else {
             self.current_frame_mut()
                 .current_scope_mut()
                 .variables_mut()
                 .insert(identifier, variable);
+        }
+    }
+
+    fn push_scope(&mut self) {
+        if self.call_stack.is_empty() {
+            self.global_sub_scopes
+                .push(RuntimeScope::new(RuntimeScopeType::Block));
+        } else {
+            self.current_frame_mut().push_scope();
+        }
+    }
+
+    fn pop_scope(&mut self) {
+        if self.call_stack.is_empty() {
+            self.global_sub_scopes.pop();
+        } else {
+            self.current_frame_mut().pop_scope();
         }
     }
 

@@ -10,6 +10,10 @@ other operators (and, or, xor...)
 
 control flow (if/else statements, loops...)
 
+- [x] If statements
+- [ ] While loops
+- [ ] For loops
+
 struct impl blocks
 
 type casting
