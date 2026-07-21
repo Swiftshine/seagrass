@@ -20,6 +20,7 @@ pub enum Statement {
     FunctionDefinition(FunctionDefinition),
     Return(Return),
     StructDefinition(StructDefinition),
+    ControlStatement(ControlStatement),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -158,6 +159,40 @@ pub struct StructFieldDefinition {
     pub data_type: DataType,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ControlStatement {
+    If {
+        expression: Expression,
+        block: Block,
+        children: Vec<ControlStatement>,
+    },
+    ElseIf {
+        expression: Expression,
+        block: Block,
+    },
+    Else {
+        block: Block,
+    },
+}
+
+impl ControlStatement {
+    fn build_if(expression: Expression, block: Block, children: Vec<ControlStatement>) -> Self {
+        Self::If {
+            expression,
+            block,
+            children,
+        }
+    }
+
+    fn build_else_if(expression: Expression, block: Block) -> Self {
+        Self::ElseIf { expression, block }
+    }
+
+    fn build_else(block: Block) -> Self {
+        Self::Else { block }
+    }
+}
+
 pub fn dump(pair: Pair<Rule>, indent: usize) {
     println!(
         "{}{:?}: {:?}",
@@ -196,8 +231,78 @@ fn build_statement(pair: Pair<Rule>) -> Result<Statement> {
         )?)),
         Rule::Return => Ok(Statement::Return(build_return(inner)?)),
         Rule::StructDefinition => Ok(Statement::StructDefinition(build_struct_definition(inner)?)),
+        Rule::IfStatement => Ok(Statement::ControlStatement(build_if_statement(inner)?)),
         _ => unreachable!("{:?}", inner.as_rule()),
     }
+}
+
+fn build_if_statement(pair: Pair<Rule>) -> Result<ControlStatement> {
+    assert_eq!(pair.as_rule(), Rule::IfStatement);
+
+    let mut inner = pair.into_inner();
+
+    // KeywordIf
+    inner.next();
+
+    // Comparison
+    let expression = build_comparison(inner.next().unwrap())?;
+
+    // Block
+    let block = build_block(inner.next().unwrap())?;
+
+    let mut children = Vec::new();
+
+    while let Some(statement) = inner.next() {
+        match statement.as_rule() {
+            Rule::ElseIfStatement => {
+                children.push(build_else_if_statement(statement)?);
+            }
+
+            Rule::ElseStatement => {
+                // this should be the end; break
+                children.push(build_else_statement(statement)?);
+                break;
+            }
+
+            _ => unreachable!("{:?}", statement.as_rule()),
+        }
+    }
+
+    Ok(ControlStatement::build_if(expression, block, children))
+}
+
+fn build_else_if_statement(pair: Pair<Rule>) -> Result<ControlStatement> {
+    assert_eq!(pair.as_rule(), Rule::ElseIfStatement);
+
+    let mut inner = pair.into_inner();
+
+    // KeywordElse
+    inner.next();
+
+    // KeywordIf
+    inner.next();
+
+    // Comparison
+    let expression = build_comparison(inner.next().unwrap())?;
+
+    // Block
+    let block = build_block(inner.next().unwrap())?;
+
+    Ok(ControlStatement::build_else_if(expression, block))
+}
+
+fn build_else_statement(pair: Pair<Rule>) -> Result<ControlStatement> {
+    assert_eq!(pair.as_rule(), Rule::ElseStatement);
+
+    let mut inner = pair.into_inner();
+
+    // KeywordElse
+    inner.next();
+
+    // Block
+    let block = build_block(inner.next().unwrap())?;
+
+    Ok(ControlStatement::build_else(block))
 }
 
 fn build_assignment(pair: Pair<Rule>) -> Result<Assignment> {

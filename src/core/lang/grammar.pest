@@ -166,9 +166,7 @@ Value = {
 }
 
 Statement = {
-    ElseIfStatement |
     IfStatement |
-    ElseStatement |
     StructImplBlock |
     FunctionDefinition |
     StructDefinition |
@@ -178,11 +176,11 @@ Statement = {
 }
 
 IfStatement = {
-    KeywordIf ~ Comparison ~ Block
+    KeywordIf ~ Comparison ~ Block ~ ElseIfStatement* ~ ElseStatement?
 }
 
 ElseIfStatement = {
-    KeywordElse ~ IfStatement
+    KeywordElse ~ KeywordIf ~ Comparison ~ Block
 }
 
 ElseStatement = {

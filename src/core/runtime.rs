@@ -4,8 +4,8 @@ mod operators;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::lang::ast::{
-    Assignment, AssignmentTarget, BinaryOperator, Block, DataType, Expression, FunctionDefinition,
-    Program, Return, Statement, StructDefinition, StructInitialization, Value,
+    Assignment, AssignmentTarget, BinaryOperator, Block, ControlStatement, DataType, Expression,
+    FunctionDefinition, Program, Return, Statement, StructDefinition, StructInitialization, Value,
 };
 
 pub type RuntimeReference = Rc<RefCell<RuntimeVariable>>;
@@ -158,6 +158,8 @@ pub enum RuntimeError {
     InvalidReferenceTarget,
     #[error("Cannot compare structs of type '{0}' and '{1}'")]
     InvalidStructComparison(String, String),
+    #[error("The expression given does not resolve to a boolean value")]
+    ExpectedBoolean,
 
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]
@@ -342,9 +344,10 @@ impl Runtime {
 
     pub fn pop_frame(&mut self) {
         if let Some(frame) = self.call_stack.pop()
-            && self.config.preserve_expired_frames {
-                self.dead_frames.push(frame);
-            }
+            && self.config.preserve_expired_frames
+        {
+            self.dead_frames.push(frame);
+        }
     }
 
     pub fn execute(&mut self, program: &Program) -> RuntimeResult<()> {
@@ -393,7 +396,73 @@ impl Runtime {
 
             Statement::Return(ret) => self.execute_return(ret),
 
+            Statement::ControlStatement(control_statement) => {
+                self.execute_control_statement(control_statement)
+            }
+
             _ => unreachable!("{:?}", statement),
+        }
+    }
+
+    fn execute_control_statement(
+        &mut self,
+        control_statement: &ControlStatement,
+    ) -> StatementResult {
+        match control_statement {
+            ControlStatement::If {
+                expression,
+                block,
+                children,
+            } => self.execute_if(expression, block, children),
+
+            _ => unreachable!("{:?}", control_statement),
+        }
+    }
+
+    fn execute_if(
+        &mut self,
+        expression: &Expression,
+        block: &Block,
+        children: &Vec<ControlStatement>,
+    ) -> StatementResult {
+        // execute our statement first
+
+        if self.evaluate_boolean_expression(expression)? {
+            self.execute_block(block)?;
+            return Ok(ControlFlow::Continue);
+        }
+
+        // check children
+
+        for child in children {
+            match child {
+                ControlStatement::ElseIf { expression, block } => {
+                    if self.evaluate_boolean_expression(expression)? {
+                        return self.execute_block(block);
+                    }
+                }
+
+                ControlStatement::Else { block } => {
+                    return self.execute_block(block);
+                }
+
+                _ => {
+                    unreachable!("{:?}", child);
+                }
+            }
+        }
+
+        // continue anyway
+        Ok(ControlFlow::Continue)
+    }
+
+    fn evaluate_boolean_expression(&mut self, expression: &Expression) -> RuntimeResult<bool> {
+        let value = self.evaluate_expression(expression)?;
+
+        if let RuntimeValue::Bool(boolean) = value {
+            Ok(boolean)
+        } else {
+            Err(RuntimeError::ExpectedBoolean)
         }
     }
 
@@ -466,24 +535,24 @@ impl Runtime {
     }
 
     // keeping this for now for control statements
-    // fn execute_block(&mut self, block: &Block) -> StatementResult {
-    //     self.current_frame_mut().push_scope();
+    fn execute_block(&mut self, block: &Block) -> StatementResult {
+        self.current_frame_mut().push_scope();
 
-    //     let result = (|| {
-    //         for statement in &block.statements {
-    //             match self.execute_statement(statement)? {
-    //                 ControlFlow::Continue => {}
-    //                 flow @ ControlFlow::Return(_) => return Ok(flow),
-    //             }
-    //         }
+        let result = (|| {
+            for statement in &block.statements {
+                match self.execute_statement(statement)? {
+                    ControlFlow::Continue => {}
+                    flow @ ControlFlow::Return(_) => return Ok(flow),
+                }
+            }
 
-    //         Ok(ControlFlow::Continue)
-    //     })();
+            Ok(ControlFlow::Continue)
+        })();
 
-    //     self.current_frame_mut().pop_scope();
+        self.current_frame_mut().pop_scope();
 
-    //     result
-    // }
+        result
+    }
 
     fn assign_variable(&mut self, identifier: String, value: RuntimeValue) {
         let variable = Rc::new(RefCell::new(RuntimeVariable::from_value(value)));
