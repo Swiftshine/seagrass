@@ -23,7 +23,8 @@ Keyword = {
     KeywordIf |
     KeywordElse |
     KeywordTrue |
-    KeywordFalse
+    KeywordFalse |
+    KeywordWhile
 }
 
 KeywordFn = @{ "fn" ~ KeywordBoundary }
@@ -35,6 +36,7 @@ KeywordIf = @{ "if" ~ KeywordBoundary }
 KeywordElse = @{ "else" ~ KeywordBoundary }
 KeywordTrue  = @{ "true" ~ KeywordBoundary }
 KeywordFalse = @{ "false" ~ KeywordBoundary }
+KeywordWhile = @{ "while" ~ KeywordBoundary }
 
 // Execution
 Block = {
@@ -167,6 +169,7 @@ Value = {
 
 Statement = {
     IfStatement |
+    WhileStatement |
     StructImplBlock |
     FunctionDefinition |
     StructDefinition |
@@ -185,6 +188,10 @@ ElseIfStatement = {
 
 ElseStatement = {
     KeywordElse ~ Block
+}
+
+WhileStatement = {
+    KeywordWhile ~ Comparison ~ Block
 }
 
 DeclarativeAssignment = {

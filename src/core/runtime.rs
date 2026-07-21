@@ -417,8 +417,18 @@ impl Runtime {
                 children,
             } => self.execute_if(expression, block, children),
 
+            ControlStatement::While { expression, block } => self.execute_while(expression, block),
+
             _ => unreachable!("{:?}", control_statement),
         }
+    }
+
+    fn execute_while(&mut self, expression: &Expression, block: &Block) -> StatementResult {
+        while self.evaluate_boolean_expression(expression)? {
+            self.execute_block(block)?;
+        }
+
+        Ok(ControlFlow::Continue)
     }
 
     fn execute_if(

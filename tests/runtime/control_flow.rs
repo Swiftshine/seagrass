@@ -37,3 +37,20 @@ pub fn if_statements() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+pub fn while_statements() -> Result<()> {
+    let source = "
+        let val = 5;
+
+        while val != 0 {
+            val = val - 1;
+        }
+    ";
+
+    let val = execute_source(source, &vec![])?.get_global_variable("val")?;
+
+    assert_eq!(val.borrow().value(), RuntimeValue::S32(0));
+
+    Ok(())
+}

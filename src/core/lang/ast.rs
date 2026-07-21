@@ -173,6 +173,10 @@ pub enum ControlStatement {
     Else {
         block: Block,
     },
+    While {
+        expression: Expression,
+        block: Block,
+    },
 }
 
 impl ControlStatement {
@@ -190,6 +194,10 @@ impl ControlStatement {
 
     fn build_else(block: Block) -> Self {
         Self::Else { block }
+    }
+
+    fn build_while(expression: Expression, block: Block) -> Self {
+        Self::While { expression, block }
     }
 }
 
@@ -232,8 +240,26 @@ fn build_statement(pair: Pair<Rule>) -> Result<Statement> {
         Rule::Return => Ok(Statement::Return(build_return(inner)?)),
         Rule::StructDefinition => Ok(Statement::StructDefinition(build_struct_definition(inner)?)),
         Rule::IfStatement => Ok(Statement::ControlStatement(build_if_statement(inner)?)),
+        Rule::WhileStatement => Ok(Statement::ControlStatement(build_while_statement(inner)?)),
         _ => unreachable!("{:?}", inner.as_rule()),
     }
+}
+
+fn build_while_statement(pair: Pair<Rule>) -> Result<ControlStatement> {
+    assert_eq!(pair.as_rule(), Rule::WhileStatement);
+
+    let mut inner = pair.into_inner();
+
+    // KeywordWhile
+    inner.next();
+
+    // Comparison
+    let expression = build_comparison(inner.next().unwrap())?;
+
+    // Block
+    let block = build_block(inner.next().unwrap())?;
+
+    Ok(ControlStatement::build_while(expression, block))
 }
 
 fn build_if_statement(pair: Pair<Rule>) -> Result<ControlStatement> {

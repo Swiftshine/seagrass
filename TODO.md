@@ -11,7 +11,7 @@ other operators (and, or, xor...)
 control flow (if/else statements, loops...)
 
 - [x] If statements
-- [ ] While loops
+- [x] While loops
 - [ ] For loops
 
 struct impl blocks
@@ -19,3 +19,7 @@ struct impl blocks
 type casting
 
 bitwise operations
+
+include statements
+
+- i'd also like some functions to run only when they're configured to upon load, perhaps to initialise values or something
