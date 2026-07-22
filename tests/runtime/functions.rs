@@ -47,3 +47,27 @@ pub fn return_value() -> Result<()> {
     assert!(matches!(variable.borrow().value(), RuntimeValue::S32(123)));
     Ok(())
 }
+
+#[test]
+pub fn struct_method() -> Result<()> {
+    let source = "
+        struct MyStruct {
+            value: s32
+        }
+
+        impl MyStruct {
+            fn my_func(&self) {
+                return self.value * 2;
+            }
+        }
+
+        let my_struct = MyStruct { value: 2 };
+        let out = (&my_struct).my_func();
+    ";
+
+    let out = execute_source(source, &vec![])?.get_global_variable("out")?;
+
+    assert_eq!(out.borrow().value(), RuntimeValue::S32(4));
+    
+    Ok(())
+}
