@@ -25,7 +25,8 @@ Keyword = {
     KeywordTrue |
     KeywordFalse |
     KeywordWhile |
-    KeywordBreak
+    KeywordBreak |
+    KeywordSelf
 }
 
 KeywordFn = @{ "fn" ~ KeywordBoundary }
@@ -40,6 +41,7 @@ KeywordFalse = @{ "false" ~ KeywordBoundary }
 KeywordWhile = @{ "while" ~ KeywordBoundary }
 KeywordLoop = @{ "loop" ~ KeywordBoundary }
 KeywordBreak = @{ "break" ~ KeywordBoundary }
+KeywordSelf = @{ "self" ~ KeywordBoundary }
 
 // Execution
 Block = {
@@ -320,8 +322,16 @@ StructFieldDefinition = {
 
 StructImplBlock = {
     KeywordImpl ~ Identifier ~ LBrace ~
-        FunctionDefinition* ~
+        StructImplDefinitions? ~
     RBrace
+}
+
+StructImplDefinitions = {
+    (FunctionDefinition | MethodDefinition)*
+}
+
+MethodDefinition = {
+    KeywordFn ~ Identifier ~ LParen ~ Ampersand ~ KeywordSelf ~ ParameterList? ~ RParen ~ Block
 }
 
 ConfigStatement = @{

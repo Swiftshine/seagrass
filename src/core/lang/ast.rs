@@ -22,12 +22,39 @@ pub enum Statement {
     Break,
     StructDefinition(StructDefinition),
     ControlStatement(ControlStatement),
+    StructImpl(StructImpl),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct StructImpl {
+    pub struct_identifier: String,
+    pub function_definitions: Vec<FunctionDefinition>,
+    pub method_definitions: Vec<MethodDefinition>,
+}
+
+impl StructImpl {
+    pub fn has_method(&self, identifier: &str) -> bool {
+        self.method_definitions
+            .iter()
+            .any(|m| m.identifier == identifier)
+    }
+}
+
+// these two structs are identical but they're different types
+// for the sake of clarity
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct MethodDefinition {
+    pub identifier: String,
+    pub body: Block,
+    pub parameters: Vec<Parameter>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionDefinition {
     pub identifier: String,
     pub body: Block,
+    pub parameters: Vec<Parameter>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -46,11 +73,11 @@ pub enum Expression {
     },
     Reference(Box<Expression>),
     Dereference(Box<Expression>),
-    // MethodCall {
-    //     expression: Box<Expression>,
-    //     method_identifier: String,
-    //     arguments: Vec<Expression>,
-    // }
+    MethodCall {
+        expression: Box<Expression>,
+        method_identifier: String,
+        arguments: Vec<Expression>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -251,8 +278,49 @@ fn build_statement(pair: Pair<Rule>) -> Result<Statement> {
         Rule::WhileStatement => Ok(Statement::ControlStatement(build_while_statement(inner)?)),
         Rule::LoopStatement => Ok(Statement::ControlStatement(build_loop_statement(inner)?)),
         Rule::BreakStatement => Ok(Statement::Break),
+        Rule::StructImplBlock => Ok(Statement::StructImpl(build_struct_impl(inner)?)),
         _ => unreachable!("{:?}", inner.as_rule()),
     }
+}
+
+fn build_struct_impl(pair: Pair<Rule>) -> Result<StructImpl> {
+    assert_eq!(pair.as_rule(), Rule::StructImplBlock);
+
+    let mut inner = pair.into_inner();
+
+    // KeywordImpl
+    inner.next();
+
+    // Identifier
+    let struct_identifier = inner.next().unwrap().to_string();
+
+    let mut function_definitions = Vec::new();
+    let mut method_definitions = Vec::new();
+
+    // StructImplDefinitions?
+    if let Some(pair) = inner.next() {
+        assert_eq!(pair.as_rule(), Rule::StructImplDefinitions);
+
+        let mut inner = pair.into_inner();
+
+        while let Some(pair) = inner.next() {
+            match pair.as_rule() {
+                Rule::FunctionDefinition => {
+                    function_definitions.push(build_function_definition(pair)?);
+                }
+                Rule::MethodDefinition => {
+                    method_definitions.push(build_method_definition(pair)?);
+                }
+                _ => unreachable!("{:?}", pair.as_rule()),
+            }
+        }
+    }
+
+    Ok(StructImpl {
+        struct_identifier,
+        function_definitions,
+        method_definitions,
+    })
 }
 
 fn build_loop_statement(pair: Pair<Rule>) -> Result<ControlStatement> {
@@ -381,7 +449,7 @@ fn build_declarative_assignment(pair: Pair<Rule>) -> Result<Assignment> {
     inner.next();
 
     // Identifier
-    let identifier = inner.next().unwrap().as_str().to_string();
+    let identifier = inner.next().unwrap().to_string();
 
     // TypeAnnotation?
     let data_type = match inner.peek().map(|p| p.as_rule()) {
@@ -564,13 +632,37 @@ fn build_postfix(pair: Pair<Rule>) -> Result<Expression> {
 
     let mut expr = build_atom(inner.next().unwrap())?;
 
-    for field in inner {
-        let field = field.into_inner().next().unwrap().as_str().to_string();
+    for pair in inner {
+        let rule = pair.as_rule();
+        let mut inner = pair.into_inner();
 
-        expr = Expression::StructFieldAccess {
-            expression: Box::new(expr),
-            field_identifier: field,
-        };
+        match rule {
+            Rule::FieldAccess => {
+                let field = inner.next().unwrap().to_string();
+
+                expr = Expression::StructFieldAccess {
+                    expression: Box::new(expr),
+                    field_identifier: field,
+                };
+            }
+
+            Rule::MethodCall => {
+                let method_identifier = inner.next().unwrap().to_string();
+
+                // ArgumentList?
+                let arguments = match inner.peek().map(|p| p.as_rule()) {
+                    Some(Rule::ArgumentList) => build_argument_list(inner.next().unwrap())?,
+                    _ => Vec::new(),
+                };
+
+                expr = Expression::MethodCall {
+                    expression: Box::new(expr),
+                    method_identifier,
+                    arguments,
+                }
+            }
+            _ => unreachable!("{:?}", rule),
+        }
     }
 
     Ok(expr)
@@ -598,7 +690,7 @@ fn build_struct_initialization(pair: Pair<Rule>) -> Result<StructInitialization>
     let mut inner = pair.into_inner();
 
     // Identifier
-    let identifier = inner.next().unwrap().as_str().to_string();
+    let identifier = inner.next().unwrap().to_string();
 
     // StructFieldInitializers?
     let fields = match inner.next() {
@@ -630,7 +722,7 @@ fn build_struct_field_initializer(pair: Pair<Rule>) -> Result<StructFieldInitial
     let mut inner = pair.into_inner();
 
     // Identifier
-    let identifier = inner.next().unwrap().as_str().to_string();
+    let identifier = inner.next().unwrap().to_string();
 
     // // DataType
     // let data_type = build_data_type(inner.next().unwrap())?;
@@ -653,7 +745,7 @@ fn build_struct_definition(pair: Pair<Rule>) -> Result<StructDefinition> {
     inner.next();
 
     // Identifier
-    let identifier = inner.next().unwrap().as_str().to_string();
+    let identifier = inner.next().unwrap().to_string();
 
     // StructFields?
     let fields = match inner.next() {
@@ -678,7 +770,7 @@ fn build_struct_field_definition(pair: Pair<Rule>) -> Result<StructFieldDefiniti
     let mut inner = pair.into_inner();
 
     // Identifier
-    let identifier = inner.next().unwrap().as_str().to_string();
+    let identifier = inner.next().unwrap().to_string();
 
     // DataType
     let data_type = build_data_type(inner.next().unwrap())?;
@@ -698,11 +790,81 @@ fn build_function_definition(pair: Pair<Rule>) -> Result<FunctionDefinition> {
     inner.next();
 
     // Identifier
-    let identifier = inner.next().unwrap().as_str().to_string();
+    let identifier = inner.next().unwrap().to_string();
 
+    // ParameterList?
+    let parameters = match inner.peek().map(|p| p.as_rule()) {
+        Some(Rule::ParameterList) => build_parameter_list(inner.next().unwrap())?,
+        _ => Vec::new(),
+    };
+
+    // Block
     let body = build_block(inner.next().unwrap())?;
 
-    Ok(FunctionDefinition { identifier, body })
+    Ok(FunctionDefinition {
+        identifier,
+        body,
+        parameters,
+    })
+}
+
+fn build_method_definition(pair: Pair<Rule>) -> Result<MethodDefinition> {
+    assert_eq!(pair.as_rule(), Rule::MethodDefinition);
+
+    let mut inner = pair.into_inner();
+
+    // KeywordFn
+    inner.next();
+
+    // Identifier
+    let identifier = inner.next().unwrap().to_string();
+
+    // KeywordSelf
+    inner.next();
+
+    // ParameterList?
+    let parameters = match inner.peek().map(|p| p.as_rule()) {
+        Some(Rule::ParameterList) => build_parameter_list(inner.next().unwrap())?,
+        _ => Vec::new(),
+    };
+
+    // Block
+    let body = build_block(inner.next().unwrap())?;
+
+    Ok(MethodDefinition {
+        identifier,
+        body,
+        parameters,
+    })
+}
+
+fn build_parameter_list(pair: Pair<Rule>) -> Result<Vec<Parameter>> {
+    assert_eq!(pair.as_rule(), Rule::ParameterList);
+
+    let parameters: Vec<Parameter> = pair
+        .into_inner()
+        .into_iter()
+        .flat_map(build_function_parameter)
+        .collect();
+
+    Ok(parameters)
+}
+
+fn build_function_parameter(pair: Pair<Rule>) -> Result<Parameter> {
+    assert_eq!(pair.as_rule(), Rule::Parameter);
+
+    let mut inner = pair.into_inner();
+
+    // Identifier
+    let identifier = inner.next().unwrap().to_string();
+
+    // DataType
+    let data_type = build_data_type(inner.next().unwrap())?;
+
+    Ok(Parameter {
+        identifier,
+        data_type,
+    })
 }
 
 fn build_block(pair: Pair<Rule>) -> Result<Block> {
@@ -737,7 +899,7 @@ fn build_function_call(pair: Pair<Rule>) -> Result<FunctionCall> {
     let mut inner = pair.into_inner();
 
     // QualifiedIdentifier
-    let identifier = inner.next().unwrap().as_str().to_string();
+    let identifier = inner.next().unwrap().to_string();
 
     // ArgumentList?
     let arguments = match inner.next() {

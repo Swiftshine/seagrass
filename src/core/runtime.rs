@@ -5,7 +5,8 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::lang::ast::{
     Assignment, AssignmentTarget, BinaryOperator, Block, ControlStatement, DataType, Expression,
-    FunctionDefinition, Program, Return, Statement, StructDefinition, StructInitialization, Value,
+    FunctionDefinition, MethodDefinition, Parameter, Program, Return, Statement, StructDefinition,
+    StructImpl, StructInitialization, Value,
 };
 
 pub type RuntimeReference = Rc<RefCell<RuntimeVariable>>;
@@ -98,14 +99,37 @@ impl RuntimeValue {
     pub fn dereference(&self) -> RuntimeResult<RuntimeValue> {
         match self {
             RuntimeValue::Reference(variable) => Ok(variable.borrow().value().clone()),
-
-            _ => Ok(self.clone()),
+            _ => Err(RuntimeError::CannotDereferenceNonReference),
         }
     }
 
     pub fn is_reference(&self) -> bool {
         matches!(self, Self::Reference(_))
     }
+
+    pub fn assert_reference(&self) -> RuntimeResult<()> {
+        if !self.is_reference() {
+            Err(RuntimeError::ExpectedReference(
+                self.data_type()?.to_string(),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    // pub fn assert_struct(&self) -> RuntimeResult<()> {
+    //     match self {
+    //         RuntimeValue::Struct { .. } => Ok(()),
+    //         RuntimeValue::Reference(reference) => {
+    //             // the first dereference and the first dereference only must resolve to a struct
+    //             match reference.borrow().value() {
+    //                 RuntimeValue::Struct { .. } => Ok(()),
+    //                 _ => Err(RuntimeError::ExpectedStruct),
+    //             }
+    //         }
+    //         _ => Err(RuntimeError::ExpectedStruct),
+    //     }
+    // }
 }
 
 pub type NativeFunction = fn(Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>;
@@ -123,6 +147,11 @@ pub enum RuntimeError {
     VariableNotFound(String),
     #[error("Function '{0}' not defined")]
     FunctionNotFound(String),
+    #[error("Method '{method_identifier}' not defined for '{struct_identifier}'")]
+    MethodNotFound {
+        method_identifier: String,
+        struct_identifier: String,
+    },
     #[error("Function '{0}' is not a user-defined function")]
     NotAUserDefinedFunction(String),
     #[error("Function '{0}' is not a native function")]
@@ -138,6 +167,8 @@ pub enum RuntimeError {
     },
     #[error("Struct definition '{0}' not found")]
     StructDefinitionNotFound(String),
+    #[error("Struct impl '{0}' not found")]
+    StructImplNotFound(String),
     #[error("Expected reference, found '{0}'")]
     ExpectedReference(String),
 
@@ -160,6 +191,10 @@ pub enum RuntimeError {
     InvalidStructComparison(String, String),
     #[error("The expression given does not resolve to a boolean value")]
     ExpectedBoolean,
+    #[error("The expression given does not resolve to a struct or struct reference")]
+    ExpectedStruct,
+    #[error("Cannot dereference a type that is not a reference")]
+    CannotDereferenceNonReference,
 
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]
@@ -244,10 +279,17 @@ pub struct FunctionFrame {
 }
 
 impl FunctionFrame {
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String, args: Vec<(String, RuntimeValue)>) -> Self {
+        let mut scope = RuntimeScope::new(RuntimeScopeType::Function);
+
+        for (identifier, value) in args {
+            let var_ref = Rc::new(RefCell::new(RuntimeVariable::from_value(value)));
+            scope.variables.insert(identifier, var_ref);
+        }
+
         Self {
             name,
-            scopes: vec![RuntimeScope::new(RuntimeScopeType::Function)],
+            scopes: vec![scope],
         }
     }
 
@@ -286,6 +328,18 @@ impl FunctionFrame {
     }
 }
 
+impl StructImpl {
+    pub fn get_method_definition(&self, identifier: &str) -> RuntimeResult<&MethodDefinition> {
+        self.method_definitions
+            .iter()
+            .find(|m| m.identifier == identifier)
+            .ok_or(RuntimeError::MethodNotFound {
+                method_identifier: identifier.to_string(),
+                struct_identifier: self.struct_identifier.clone(),
+            })
+    }
+}
+
 #[derive(Debug)]
 pub struct Runtime {
     global_scope: RuntimeScope,
@@ -294,6 +348,7 @@ pub struct Runtime {
     dead_frames: Vec<FunctionFrame>,
     functions: HashMap<String, RuntimeFunction>,
     structs: HashMap<String, Rc<StructDefinition>>,
+    struct_impls: HashMap<String, Rc<StructImpl>>,
     config: RuntimeConfig,
 }
 
@@ -312,6 +367,7 @@ impl Runtime {
             dead_frames: Vec::new(),
             functions: HashMap::new(),
             structs: HashMap::new(),
+            struct_impls: HashMap::new(),
             config: RuntimeConfig::default(),
         }
     }
@@ -341,8 +397,8 @@ impl Runtime {
         self
     }
 
-    pub fn push_frame(&mut self, identifier: String) {
-        self.call_stack.push(FunctionFrame::new(identifier));
+    pub fn push_frame(&mut self, identifier: String, args: Vec<(String, RuntimeValue)>) {
+        self.call_stack.push(FunctionFrame::new(identifier, args));
     }
 
     pub fn pop_frame(&mut self) {
@@ -366,6 +422,9 @@ impl Runtime {
                 Statement::StructDefinition(struct_definition) => {
                     self.define_struct(struct_definition)?;
                 }
+                Statement::StructImpl(struct_impl) => {
+                    self.impl_struct(struct_impl)?;
+                }
                 _ => {}
             }
         }
@@ -373,7 +432,9 @@ impl Runtime {
         // execute normal statements
         for statement in &program.statements {
             match statement {
-                Statement::FunctionDefinition(_) | Statement::StructDefinition(_) => {}
+                Statement::FunctionDefinition(_)
+                | Statement::StructDefinition(_)
+                | Statement::StructImpl(_) => {}
                 _ => {
                     self.execute_statement(statement)?;
                 }
@@ -679,6 +740,57 @@ impl Runtime {
         Ok(ControlFlow::Continue)
     }
 
+    fn impl_struct(&mut self, struct_impl: &StructImpl) -> StatementResult {
+        let identifier = struct_impl.struct_identifier.clone();
+        // self.validate_identifier(&identifier)?;
+
+        self.struct_impls
+            .insert(identifier, Rc::new(struct_impl.clone()));
+
+        Ok(ControlFlow::Continue)
+    }
+
+    fn invoke_method(
+        &mut self,
+        struct_identifier: &str,
+        method_identifier: &str,
+        struct_reference: RuntimeValue,
+        args: Vec<RuntimeValue>,
+    ) -> RuntimeResult<RuntimeValue> {
+        // make sure we have the struct definition and the function the method call
+        // is asking for
+        self.get_struct_definition(&struct_identifier)?;
+
+        let parameters = &self
+            .get_struct_impl(&struct_identifier)?
+            .get_method_definition(method_identifier)?
+            .parameters;
+
+        let mut args = Self::collect_runtime_function_arguments(parameters, args)?;
+
+        let scope_resolved_name = struct_identifier.to_string() + "::" + method_identifier;
+
+        struct_reference.assert_reference()?;
+        args.insert(0, ("self".to_string(), struct_reference));
+
+        self.push_frame(scope_resolved_name, args);
+
+        let block = &self
+            .get_struct_impl(&struct_identifier)?
+            .get_method_definition(method_identifier)?
+            .body
+            .clone();
+
+        let result = self.execute_function_body(&block);
+        self.pop_frame();
+
+        match result? {
+            ControlFlow::Continue => Ok(RuntimeValue::None),
+            ControlFlow::Return(value) => Ok(value),
+            _ => unreachable!("expected ControlFlow::Continue or ControlFlow::Return"),
+        }
+    }
+
     fn call_function(
         &mut self,
         identifier: &str,
@@ -694,7 +806,9 @@ impl Runtime {
             RuntimeFunction::Native(native) => native(args),
 
             RuntimeFunction::User(func) => {
-                self.push_frame(identifier.to_string());
+                let args = Self::collect_runtime_function_arguments(&func.parameters, args)?;
+
+                self.push_frame(identifier.to_string(), args);
                 let result = self.execute_function_body(&func.body);
                 self.pop_frame();
 
@@ -705,6 +819,23 @@ impl Runtime {
                 }
             }
         }
+    }
+
+    // todo: maybe use a struct for this
+    fn collect_runtime_function_arguments(
+        ast_parameters: &[Parameter],
+        runtime_values: Vec<RuntimeValue>,
+    ) -> RuntimeResult<Vec<(String, RuntimeValue)>> {
+        assert_eq!(ast_parameters.len(), runtime_values.len());
+
+        let mut args = Vec::new();
+
+        for (index, value) in runtime_values.into_iter().enumerate() {
+            let identifier = ast_parameters[index].identifier.clone();
+            args.push((identifier, value));
+        }
+
+        Ok(args)
     }
 
     fn evaluate_expression(&mut self, expression: &Expression) -> RuntimeResult<RuntimeValue> {
@@ -764,6 +895,39 @@ impl Runtime {
             Expression::Dereference(expression) => {
                 let value = self.evaluate_expression(expression)?;
                 value.dereference()
+            }
+
+            Expression::MethodCall {
+                expression,
+                method_identifier,
+                arguments,
+            } => {
+                // later on i plan on implementing custom functions for native types
+                // but for now, structs only
+
+                // the expression must resolve to a struct reference
+                // which means "(&object).method()" syntax is required
+                // i'll fix this later
+
+                let value = self.evaluate_expression(expression)?;
+                value.assert_reference()?;
+
+                // if it wasn't a struct reference before, make it one
+
+                // find name of the struct definition
+                let struct_identifier = if value.is_reference() {
+                    value.dereference()?.data_type()?
+                } else {
+                    value.data_type()?
+                }
+                .to_string();
+
+                let args = arguments
+                    .iter()
+                    .flat_map(|expr| self.evaluate_expression(expr))
+                    .collect();
+
+                self.invoke_method(&struct_identifier, method_identifier, value, args)
             }
         }
     }

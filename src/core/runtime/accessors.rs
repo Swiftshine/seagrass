@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use crate::core::{
-    lang::ast::{FunctionDefinition, StructDefinition},
+    lang::ast::{FunctionDefinition, StructDefinition, StructImpl},
     runtime::{
         FunctionFrame, Runtime, RuntimeError, RuntimeFunction, RuntimeReference, RuntimeResult,
         RuntimeScope, RuntimeScopeType, RuntimeValue,
@@ -41,6 +41,12 @@ impl Runtime {
             ))
     }
 
+    pub fn get_struct_impl(&self, identifier: &str) -> RuntimeResult<&Rc<StructImpl>> {
+        self.struct_impls
+            .get(identifier)
+            .ok_or(RuntimeError::StructImplNotFound(identifier.to_string()))
+    }
+
     pub fn current_frame(&self) -> &FunctionFrame {
         self.call_stack.last().unwrap()
     }
@@ -74,9 +80,10 @@ impl Runtime {
     /// Within the current scope.
     pub fn get_variable(&self, identifier: &str) -> RuntimeResult<RuntimeReference> {
         if let Some(frame) = self.call_stack.last()
-            && let Some(variable) = frame.get_variable(identifier) {
-                return Ok(variable);
-            }
+            && let Some(variable) = frame.get_variable(identifier)
+        {
+            return Ok(variable);
+        }
 
         self.get_global_variable(identifier)
     }
