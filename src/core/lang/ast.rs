@@ -45,6 +45,7 @@ impl StructImpl {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct MethodDefinition {
+    pub attributes: Vec<Attribute>,
     pub identifier: String,
     pub body: Block,
     pub parameters: Vec<Parameter>,
@@ -52,6 +53,7 @@ pub struct MethodDefinition {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionDefinition {
+    pub attributes: Vec<Attribute>,
     pub identifier: String,
     pub body: Block,
     pub parameters: Vec<Parameter>,
@@ -176,6 +178,7 @@ impl DataType {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct StructDefinition {
+    pub attributes: Vec<Attribute>,
     pub identifier: String,
     // using vec here because the field order matters
     pub fields: Vec<StructFieldDefinition>,
@@ -234,6 +237,12 @@ impl ControlStatement {
     fn build_loop(block: Block) -> Self {
         Self::Loop { block }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Attribute {
+    pub identifier: String,
+    pub arguments: Vec<Expression>
 }
 
 pub fn dump(pair: Pair<Rule>, indent: usize) {
@@ -741,6 +750,9 @@ fn build_struct_definition(pair: Pair<Rule>) -> Result<StructDefinition> {
 
     let mut inner = pair.into_inner();
 
+    // Attributes?
+    let attributes = collect_attributes(&mut inner)?;
+
     // KeywordStruct
     inner.next();
 
@@ -753,7 +765,7 @@ fn build_struct_definition(pair: Pair<Rule>) -> Result<StructDefinition> {
         None => Vec::new(),
     };
 
-    Ok(StructDefinition { identifier, fields })
+    Ok(StructDefinition { attributes, identifier, fields })
 }
 
 fn build_struct_field_definitions(pair: Pair<Rule>) -> Result<Vec<StructFieldDefinition>> {
@@ -781,10 +793,63 @@ fn build_struct_field_definition(pair: Pair<Rule>) -> Result<StructFieldDefiniti
     })
 }
 
+fn build_attribute(pair: Pair<Rule>) -> Result<Attribute> {
+    assert_eq!(pair.as_rule(), Rule::Attribute);
+
+    let mut inner = pair.into_inner();
+
+    // Identifier
+    let identifier = inner.next().unwrap().as_str().to_string();
+
+    let arguments = match inner.next() {
+        Some(pair) if pair.as_rule() == Rule::AttributeArguments => {
+            build_attribute_arguments(pair)?
+        }
+        None => Vec::new(),
+        _ => unreachable!(),
+    };
+
+    Ok(Attribute {
+        identifier,
+        arguments,
+    })
+}
+
+fn build_attribute_arguments(pair: Pair<Rule>) -> Result<Vec<Expression>> {
+    assert_eq!(pair.as_rule(), Rule::AttributeArguments);
+
+    let mut inner = pair.into_inner();
+
+    match inner.next() {
+        Some(pair) => build_argument_list(pair),
+        None => Ok(Vec::new()),
+    }
+}
+
+fn collect_attributes(
+    inner: &mut pest::iterators::Pairs<Rule>,
+) -> Result<Vec<Attribute>> {
+    let mut attributes = Vec::new();
+
+    while let Some(pair) = inner.peek() {
+        if pair.as_rule() == Rule::Attribute {
+            attributes.push(build_attribute(inner.next().unwrap())?);
+        } else {
+            break;
+        }
+    }
+
+    Ok(attributes)
+}
+
+
 fn build_function_definition(pair: Pair<Rule>) -> Result<FunctionDefinition> {
     assert_eq!(pair.as_rule(), Rule::FunctionDefinition);
 
     let mut inner = pair.into_inner();
+
+    // Attributes?
+    let attributes = collect_attributes(&mut inner)?;
 
     // KeywordFn
     inner.next();
@@ -802,6 +867,7 @@ fn build_function_definition(pair: Pair<Rule>) -> Result<FunctionDefinition> {
     let body = build_block(inner.next().unwrap())?;
 
     Ok(FunctionDefinition {
+        attributes,
         identifier,
         body,
         parameters,
@@ -812,6 +878,9 @@ fn build_method_definition(pair: Pair<Rule>) -> Result<MethodDefinition> {
     assert_eq!(pair.as_rule(), Rule::MethodDefinition);
 
     let mut inner = pair.into_inner();
+
+    // Attributes?
+    let attributes = collect_attributes(&mut inner)?;
 
     // KeywordFn
     inner.next();
@@ -832,6 +901,7 @@ fn build_method_definition(pair: Pair<Rule>) -> Result<MethodDefinition> {
     let body = build_block(inner.next().unwrap())?;
 
     Ok(MethodDefinition {
+        attributes,
         identifier,
         body,
         parameters,
@@ -844,13 +914,13 @@ fn build_parameter_list(pair: Pair<Rule>) -> Result<Vec<Parameter>> {
     let parameters: Vec<Parameter> = pair
         .into_inner()
         .into_iter()
-        .flat_map(build_function_parameter)
+        .flat_map(build_parameter)
         .collect();
 
     Ok(parameters)
 }
 
-fn build_function_parameter(pair: Pair<Rule>) -> Result<Parameter> {
+fn build_parameter(pair: Pair<Rule>) -> Result<Parameter> {
     assert_eq!(pair.as_rule(), Rule::Parameter);
 
     let mut inner = pair.into_inner();

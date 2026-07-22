@@ -51,6 +51,7 @@ Block = {
 }
 
 FunctionDefinition = {
+    Attribute* ~
     KeywordFn ~ Identifier ~ LParen ~ ParameterList? ~ RParen ~ Block
 }
 
@@ -307,6 +308,7 @@ StructFieldInitializer = {
 }
 
 StructDefinition = {
+    Attribute* ~
     KeywordStruct ~ Identifier ~ LBrace ~
         StructFields? ~
     RBrace
@@ -331,9 +333,20 @@ StructImplDefinitions = {
 }
 
 MethodDefinition = {
+    Attribute* ~
     KeywordFn ~ Identifier ~ LParen ~ Ampersand ~ KeywordSelf ~ ParameterList? ~ RParen ~ Block
 }
 
-ConfigStatement = @{
-    Hashtag ~ LBracket ~ "configure" ~ LParen ~ String ~ Comma ~ Value ~ RParen ~ RBracket
+Attribute = {
+    Hashtag ~
+    LBracket ~
+    Identifier ~
+    AttributeArguments? ~
+    RBracket
+}
+
+AttributeArguments = {
+    LParen ~
+    ArgumentList? ~
+    RParen
 }
