@@ -15,8 +15,6 @@ control flow (if/else statements, loops...)
 - [x] Unconditional loops
 - [ ] For loops
 
-struct impl blocks
-
 type casting
 
 bitwise operations

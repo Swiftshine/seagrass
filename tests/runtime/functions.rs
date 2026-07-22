@@ -62,12 +62,12 @@ pub fn struct_method() -> Result<()> {
         }
 
         let my_struct = MyStruct { value: 2 };
-        let out = (&my_struct).my_func();
+        let out = my_struct.my_func();
     ";
 
     let out = execute_source(source, &vec![])?.get_global_variable("out")?;
 
     assert_eq!(out.borrow().value(), RuntimeValue::S32(4));
-    
+
     Ok(())
 }

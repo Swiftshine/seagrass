@@ -905,14 +905,8 @@ impl Runtime {
                 // later on i plan on implementing custom functions for native types
                 // but for now, structs only
 
-                // the expression must resolve to a struct reference
-                // which means "(&object).method()" syntax is required
-                // i'll fix this later
-
-                let value = self.evaluate_expression(expression)?;
+                let value = self.evaluate_method_receiver(expression)?;
                 value.assert_reference()?;
-
-                // if it wasn't a struct reference before, make it one
 
                 // find name of the struct definition
                 let struct_identifier = if value.is_reference() {
@@ -930,6 +924,24 @@ impl Runtime {
                 self.invoke_method(&struct_identifier, method_identifier, value, args)
             }
         }
+    }
+
+    fn evaluate_method_receiver(&mut self, expression: &Expression) -> RuntimeResult<RuntimeValue> {
+        match expression {
+            Expression::Reference(_) => {
+                self.evaluate_expression(expression)
+            }
+        
+            Expression::Value(Value::Identifier(name)) => {
+                Ok(RuntimeValue::Reference(
+                    self.get_variable(name)?
+                ))
+            }
+        
+            _ => {
+                Err(RuntimeError::InvalidReferenceTarget)
+            }
+        }        
     }
 
     fn initialize_struct(&mut self, init: &StructInitialization) -> RuntimeResult<RuntimeValue> {
