@@ -312,7 +312,7 @@ fn build_struct_impl(pair: Pair<Rule>) -> Result<StructImpl> {
 
         let mut inner = pair.into_inner();
 
-        while let Some(pair) = inner.next() {
+        for pair in inner {
             match pair.as_rule() {
                 Rule::FunctionDefinition => {
                     function_definitions.push(build_function_definition(pair)?);
@@ -379,7 +379,7 @@ fn build_if_statement(pair: Pair<Rule>) -> Result<ControlStatement> {
 
     let mut children = Vec::new();
 
-    while let Some(statement) = inner.next() {
+    for statement in inner {
         match statement.as_rule() {
             Rule::ElseIfStatement => {
                 children.push(build_else_if_statement(statement)?);
@@ -913,7 +913,6 @@ fn build_parameter_list(pair: Pair<Rule>) -> Result<Vec<Parameter>> {
 
     let parameters: Vec<Parameter> = pair
         .into_inner()
-        .into_iter()
         .flat_map(build_parameter)
         .collect();
 

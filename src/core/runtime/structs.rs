@@ -115,10 +115,10 @@ impl Runtime {
     ) -> RuntimeResult<RuntimeValue> {
         // make sure we have the struct definition and the function the method call
         // is asking for
-        self.get_struct_definition(&struct_identifier)?;
+        self.get_struct_definition(struct_identifier)?;
 
         let parameters = &self
-            .get_struct_impl(&struct_identifier)?
+            .get_struct_impl(struct_identifier)?
             .get_method_definition(method_identifier)?
             .parameters;
 
@@ -132,12 +132,12 @@ impl Runtime {
         self.push_frame(scope_resolved_name, args);
 
         let block = &self
-            .get_struct_impl(&struct_identifier)?
+            .get_struct_impl(struct_identifier)?
             .get_method_definition(method_identifier)?
             .body
             .clone();
 
-        let result = self.execute_function_body(&block);
+        let result = self.execute_function_body(block);
         self.pop_frame();
 
         match result? {
@@ -256,11 +256,9 @@ impl Runtime {
         let mut struct_fields = HashMap::new();
 
         for field_definition in &definition.fields {
-            if init
+            if !init
                 .initialized_fields
-                .iter()
-                .find(|f| f.identifier == field_definition.identifier)
-                .is_none()
+                .iter().any(|f| f.identifier == field_definition.identifier)
             {
                 if self.config.error_on_incomplete_struct_initialization {
                     return Err(RuntimeError::IncompleteStructInitialization(
