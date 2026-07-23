@@ -1,4 +1,4 @@
-use crate::core::runtime::{NativeFunction, Runtime, RuntimeFunction};
+use crate::core::runtime::{Runtime, functions::{NativeFunction, RuntimeFunction}};
 
 pub mod util;
 pub mod fs;

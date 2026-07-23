@@ -3,7 +3,7 @@ use std::{collections::HashMap, rc::Rc};
 use crate::core::{
     lang::ast::{FunctionDefinition, StructDefinition, StructImpl},
     runtime::{
-        FunctionFrame, Runtime, RuntimeError, RuntimeFunction, RuntimeReference, RuntimeResult,
+        FunctionFrame, Runtime, RuntimeError, RuntimeFunction, value::RuntimeReference, RuntimeResult,
         RuntimeScope, RuntimeScopeType, RuntimeValue,
     },
 };
