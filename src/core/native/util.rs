@@ -13,6 +13,13 @@ pub(crate) mod sg {
                 RuntimeValue::String(string) => print!("string: {string}"),
                 RuntimeValue::Bool(b) => print!("bool: {b}"),
                 RuntimeValue::None => {}
+                RuntimeValue::Struct { definition, .. } => { // remove this later
+                    if definition.is_declared_pod() {
+                        print!("struct {} (declared as POD)", definition.identifier);
+                    } else {
+                        print!("struct {}", definition.identifier);
+                    }
+                }
 
                 _ => print!("cannot print for type: {}", value.data_type()?.to_string()),
             }

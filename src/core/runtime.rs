@@ -196,6 +196,7 @@ pub enum RuntimeError {
     #[error("Cannot dereference a type that is not a reference")]
     CannotDereferenceNonReference,
 
+
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]
     IncompleteStructInitialization(String),
@@ -210,6 +211,8 @@ pub enum RuntimeError {
     },
     #[error("Cannot access field '{field}' of '{data_type}' because it is not a struct")]
     InvalidStructFieldAccessTarget { field: String, data_type: String },
+    #[error("Field of type '{0}' is not POD")]
+    NonPODType(String)
 }
 
 impl RuntimeError {
@@ -559,6 +562,36 @@ impl Runtime {
         }
     }
 
+    fn validate_pod(&self, struct_definition: &StructDefinition) -> RuntimeResult<()> {
+        for field in &struct_definition.fields {
+            self.validate_pod_type(&field.data_type)?;
+        }
+
+        Ok(())
+    }
+
+    fn validate_pod_type(&self, data_type: &DataType) -> RuntimeResult<()> {
+        match data_type {
+            DataType::U32
+            | DataType::S32
+            | DataType::Bool => Ok(()),
+    
+            DataType::String | DataType::Reference(_) => {
+                Err(RuntimeError::NonPODType(data_type.to_string()))
+            }
+    
+            DataType::UserDefined(name) => {
+                let definition = self.get_struct_definition(name)?;
+    
+                if !definition.is_declared_pod() {
+                    return Err(RuntimeError::NonPODType(name.clone()));
+                }
+    
+                self.validate_pod(definition)
+            }
+        }
+    }
+
     fn execute_assignment(&mut self, assignment: &Assignment) -> StatementResult {
         let mut value = self.evaluate_expression(&assignment.expression)?;
 
@@ -733,6 +766,10 @@ impl Runtime {
     fn define_struct(&mut self, struct_definition: &StructDefinition) -> StatementResult {
         let identifier = struct_definition.identifier.clone();
         self.validate_identifier(&identifier)?;
+
+        if struct_definition.is_declared_pod() {
+            self.validate_pod(struct_definition)?;
+        }
 
         self.structs
             .insert(identifier, Rc::new(struct_definition.clone()));
