@@ -184,19 +184,6 @@ pub struct StructDefinition {
     pub fields: Vec<StructFieldDefinition>,
 }
 
-impl StructDefinition {
-    pub fn has_attribute(&self, identifier: &str) -> bool {
-        self.attributes
-            .iter()
-            .any(|a| a.identifier == identifier)
-    }
-
-    // "is declared" because the user could say it's pod when it's really not
-    pub fn is_declared_pod(&self) -> bool {
-        self.has_attribute("pod")
-    }
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct StructFieldDefinition {
     pub identifier: String,

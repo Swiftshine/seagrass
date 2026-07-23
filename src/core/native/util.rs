@@ -1,7 +1,7 @@
 pub(crate) mod sg {
-    use crate::core::runtime::{RuntimeResult, RuntimeValue};
+    use crate::core::runtime::{Runtime, RuntimeResult, RuntimeValue};
 
-    pub fn print(values: Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue> {
+    pub fn print(_: &mut Runtime, values: Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue> {
         for (i, value) in values.iter().enumerate() {
             if i > 0 {
                 print!(" ");

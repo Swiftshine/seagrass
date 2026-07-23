@@ -114,7 +114,7 @@ impl Runtime {
     pub fn get_native_function(
         &self,
         identifier: &str,
-    ) -> RuntimeResult<fn(Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>> {
+    ) -> RuntimeResult<fn(&mut Runtime, Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>> {
         match self.get_function(identifier)? {
             RuntimeFunction::Native(func) => Ok(*func),
             RuntimeFunction::User(_) => {

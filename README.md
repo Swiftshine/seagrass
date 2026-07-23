@@ -8,6 +8,8 @@ Tags modify how the language, and certain elements, may be interpreted. Tags tha
 
 ```
 #[pod] // used on a struct to indicate that it can be read and written to using a stream of bytes
+#[byte_order("big")] // self-explanatory
+
 #[run_on_import] // used on a function to indicate that it will run if and only if the script file that owns it gets imported into another; it will raise an error if called manually
 
 #[configure_runtime("preserve_expired_frames", true)] // indicates that the runtime should keep track of expired function frames for inspection after the runtime's execution has ended

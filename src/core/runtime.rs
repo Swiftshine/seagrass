@@ -4,9 +4,7 @@ mod operators;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::lang::ast::{
-    Assignment, AssignmentTarget, BinaryOperator, Block, ControlStatement, DataType, Expression,
-    FunctionDefinition, MethodDefinition, Parameter, Program, Return, Statement, StructDefinition,
-    StructImpl, StructInitialization, Value,
+    Assignment, AssignmentTarget, Attribute, BinaryOperator, Block, ControlStatement, DataType, Expression, FunctionDefinition, MethodDefinition, Parameter, Program, Return, Statement, StructDefinition, StructImpl, StructInitialization, Value,
 };
 
 pub type RuntimeReference = Rc<RefCell<RuntimeVariable>>;
@@ -132,7 +130,7 @@ impl RuntimeValue {
     // }
 }
 
-pub type NativeFunction = fn(Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>;
+pub type NativeFunction = fn(&mut Runtime, Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>;
 
 #[derive(Debug, Clone)]
 pub enum RuntimeFunction {
@@ -212,7 +210,20 @@ pub enum RuntimeError {
     #[error("Cannot access field '{field}' of '{data_type}' because it is not a struct")]
     InvalidStructFieldAccessTarget { field: String, data_type: String },
     #[error("Field of type '{0}' is not POD")]
-    NonPODType(String)
+    NonPODType(String),
+    #[error("Attribute '{attribute}' expects {expected}, but found '{found}'")]
+    InvalidAttributeArgument {
+        attribute: String,
+        expected: String,
+        found: String,
+    },
+
+    #[error("Attribute '{attribute}' expects {expected} arguments, but found {found}")]
+    InvalidAttributeArgumentCount {
+        attribute: String,
+        expected: usize,
+        found: usize,
+    },
 }
 
 impl RuntimeError {
@@ -340,6 +351,66 @@ impl StructImpl {
                 method_identifier: identifier.to_string(),
                 struct_identifier: self.struct_identifier.clone(),
             })
+    }
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ByteOrder {
+    Little,
+    Big,
+}
+
+
+impl StructDefinition {
+    pub fn has_attribute(&self, identifier: &str) -> bool {
+        self.attributes
+            .iter()
+            .any(|a| a.identifier == identifier)
+    }
+
+    pub fn get_attribute(&self, identifier: &str) -> Option<&Attribute> {
+        self.attributes
+            .iter()
+            .find(|attribute| attribute.identifier == identifier)
+    }
+
+    // "is declared" because the user could say it's pod when it's really not
+    pub fn is_declared_pod(&self) -> bool {
+        self.has_attribute("pod")
+    }
+
+    pub fn byte_order(&self) -> RuntimeResult<ByteOrder> {
+        let Some(attribute) = self.get_attribute("byte_order") else {
+            return Ok(ByteOrder::Little);
+        };
+    
+        if attribute.arguments.len() != 1 {
+            return Err(RuntimeError::InvalidAttributeArgumentCount {
+                attribute: "byte_order".to_string(),
+                expected: 1,
+                found: attribute.arguments.len(),
+            });
+        }
+    
+        match &attribute.arguments[0] {
+            Expression::Value(Value::String(value)) => match value.as_str() {
+                "little" => Ok(ByteOrder::Little),
+                "big" => Ok(ByteOrder::Big),
+    
+                other => Err(RuntimeError::InvalidAttributeArgument {
+                    attribute: "byte_order".to_string(),
+                    expected: "\"little\" or \"big\"".to_string(),
+                    found: other.to_string(),
+                }),
+            },
+    
+            other => Err(RuntimeError::InvalidAttributeArgument {
+                attribute: "byte_order".to_string(),
+                expected: "string literal".to_string(),
+                found: format!("{:?}", other),
+            }),
+        }
     }
 }
 
@@ -840,7 +911,7 @@ impl Runtime {
             .ok_or(RuntimeError::FunctionNotFound(identifier.to_string()))?;
 
         match func {
-            RuntimeFunction::Native(native) => native(args),
+            RuntimeFunction::Native(native) => native(self, args),
 
             RuntimeFunction::User(func) => {
                 let args = Self::collect_runtime_function_arguments(&func.parameters, args)?;
@@ -1088,5 +1159,103 @@ impl Runtime {
         } else {
             Ok(())
         }
+    }
+
+    pub fn serialize_into(
+        &self,
+        value: &RuntimeValue,
+        output: &mut Vec<u8>,
+    ) -> RuntimeResult<()> {
+        let byte_order = ByteOrder::Little; // todo! do self.byte_order instead and make this a runtime configuration
+
+        match value {
+            RuntimeValue::Reference(reference) => {
+                let value = reference.borrow();
+    
+                self.serialize_value(
+                    &value.value(),
+                    output,
+                    byte_order
+                )
+            }
+    
+            value => {
+                self.serialize_value(
+                    value,
+                    output,
+                    byte_order
+                )
+            }
+        }
+    }
+
+    fn serialize_value(
+        &self,
+        value: &RuntimeValue,
+        output: &mut Vec<u8>,
+        byte_order: ByteOrder,
+    ) -> RuntimeResult<()> {
+        match value {
+            RuntimeValue::U32(value) => {
+                match byte_order {
+                    ByteOrder::Little => {
+                        output.extend(value.to_le_bytes())
+                    }
+
+                    ByteOrder::Big => {
+                        output.extend(value.to_be_bytes())
+                    }
+                }
+            }
+
+            RuntimeValue::S32(value) => {
+                match byte_order {
+                    ByteOrder::Little => {
+                        output.extend(value.to_le_bytes())
+                    }
+
+                    ByteOrder::Big => {
+                        output.extend(value.to_be_bytes())
+                    }
+                }
+            }
+
+            RuntimeValue::Bool(value) => {
+                output.push(if *value { 1 } else { 0 });
+            }
+
+            RuntimeValue::Struct {
+                definition,
+                fields,
+            } => {
+                if !definition.is_declared_pod() {
+                    return Err(RuntimeError::NonPODType(
+                        definition.identifier.clone()
+                    ));
+                }
+
+                let struct_byte_order = definition.byte_order()?;
+
+                for field in &definition.fields {
+                    let value = fields
+                        .get(&field.identifier)
+                        .unwrap();
+
+                    self.serialize_value(
+                        value,
+                        output,
+                        struct_byte_order,
+                    )?;
+                }
+            }
+
+            _ => {
+                return Err(RuntimeError::NonPODType(
+                    value.data_type()?.to_string()
+                ));
+            }
+        }
+
+        Ok(())
     }
 }
