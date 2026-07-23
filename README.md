@@ -68,7 +68,7 @@ Alignment is similar to padding, but is used for serializable data types whose s
 struct MyStruct {
     field_1: u32,
     field_2: string,
-    alignment(4),
+    align(4),
     field_3: u32
 }
 ```
