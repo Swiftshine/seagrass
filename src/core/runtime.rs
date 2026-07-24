@@ -1,20 +1,24 @@
 pub(crate) mod accessors;
+pub(crate) mod evaluation;
+pub(crate) mod execution;
 pub(crate) mod functions;
 pub(crate) mod operators;
-pub(crate) mod structs;
 pub(crate) mod scopes;
-pub(crate) mod execution;
-pub(crate) mod evaluation;
+pub(crate) mod structs;
 pub(crate) mod value;
 
 pub use value::RuntimeValue;
 
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::core::{lang::ast::{
-    AssignmentTarget, FunctionDefinition, Parameter, StructDefinition, StructImpl
-}, runtime::{functions::{FunctionFrame, RuntimeFunction}, scopes::{RuntimeScope, RuntimeScopeType}, value::RuntimeVariable}};
-
+use crate::core::{
+    lang::ast::{AssignmentTarget, FunctionDefinition, Parameter, StructDefinition, StructImpl},
+    runtime::{
+        functions::{FunctionFrame, RuntimeFunction},
+        scopes::{RuntimeScope, RuntimeScopeType},
+        value::RuntimeVariable,
+    },
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
@@ -72,7 +76,6 @@ pub enum RuntimeError {
     #[error("Cannot dereference a type that is not a reference")]
     CannotDereferenceNonReference,
 
-
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]
     IncompleteStructInitialization(String),
@@ -127,7 +130,6 @@ pub enum ControlFlow {
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 pub type StatementResult = Result<ControlFlow, RuntimeError>;
-
 
 #[derive(Clone, Copy)]
 pub enum RuntimeConfigOption {
@@ -316,12 +318,12 @@ impl Runtime {
 
     fn validate_identifier(&self, identifier: &str) -> RuntimeResult<()> {
         // check against data types and functions
-        if self.structs.get(identifier).is_some() {
+        if self.structs.contains_key(identifier) {
             Err(RuntimeError::AlreadyDefined(
                 identifier.to_string(),
                 "struct",
             ))
-        } else if self.functions.get(identifier).is_some() {
+        } else if self.functions.contains_key(identifier) {
             Err(RuntimeError::AlreadyDefined(
                 identifier.to_string(),
                 "function",

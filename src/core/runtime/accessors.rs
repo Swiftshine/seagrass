@@ -3,8 +3,8 @@ use std::{collections::HashMap, rc::Rc};
 use crate::core::{
     lang::ast::{FunctionDefinition, StructDefinition, StructImpl},
     runtime::{
-        FunctionFrame, Runtime, RuntimeError, RuntimeFunction, value::RuntimeReference, RuntimeResult,
-        RuntimeScope, RuntimeScopeType, RuntimeValue,
+        FunctionFrame, Runtime, RuntimeError, RuntimeFunction, RuntimeResult, RuntimeScope,
+        RuntimeScopeType, functions::NativeFunction, value::RuntimeReference,
     },
 };
 
@@ -111,10 +111,7 @@ impl Runtime {
         }
     }
 
-    pub fn get_native_function(
-        &self,
-        identifier: &str,
-    ) -> RuntimeResult<fn(&mut Runtime, Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>> {
+    pub fn get_native_function(&self, identifier: &str) -> RuntimeResult<NativeFunction> {
         match self.get_function(identifier)? {
             RuntimeFunction::Native(func) => Ok(*func),
             RuntimeFunction::User(_) => {

@@ -242,7 +242,7 @@ impl ControlStatement {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Attribute {
     pub identifier: String,
-    pub arguments: Vec<Expression>
+    pub arguments: Vec<Expression>,
 }
 
 pub fn dump(pair: Pair<Rule>, indent: usize) {
@@ -310,9 +310,7 @@ fn build_struct_impl(pair: Pair<Rule>) -> Result<StructImpl> {
     if let Some(pair) = inner.next() {
         assert_eq!(pair.as_rule(), Rule::StructImplDefinitions);
 
-        let mut inner = pair.into_inner();
-
-        for pair in inner {
+        for pair in pair.into_inner() {
             match pair.as_rule() {
                 Rule::FunctionDefinition => {
                     function_definitions.push(build_function_definition(pair)?);
@@ -765,7 +763,11 @@ fn build_struct_definition(pair: Pair<Rule>) -> Result<StructDefinition> {
         None => Vec::new(),
     };
 
-    Ok(StructDefinition { attributes, identifier, fields })
+    Ok(StructDefinition {
+        attributes,
+        identifier,
+        fields,
+    })
 }
 
 fn build_struct_field_definitions(pair: Pair<Rule>) -> Result<Vec<StructFieldDefinition>> {
@@ -826,9 +828,7 @@ fn build_attribute_arguments(pair: Pair<Rule>) -> Result<Vec<Expression>> {
     }
 }
 
-fn collect_attributes(
-    inner: &mut pest::iterators::Pairs<Rule>,
-) -> Result<Vec<Attribute>> {
+fn collect_attributes(inner: &mut pest::iterators::Pairs<Rule>) -> Result<Vec<Attribute>> {
     let mut attributes = Vec::new();
 
     while let Some(pair) = inner.peek() {
@@ -841,7 +841,6 @@ fn collect_attributes(
 
     Ok(attributes)
 }
-
 
 fn build_function_definition(pair: Pair<Rule>) -> Result<FunctionDefinition> {
     assert_eq!(pair.as_rule(), Rule::FunctionDefinition);
@@ -911,10 +910,7 @@ fn build_method_definition(pair: Pair<Rule>) -> Result<MethodDefinition> {
 fn build_parameter_list(pair: Pair<Rule>) -> Result<Vec<Parameter>> {
     assert_eq!(pair.as_rule(), Rule::ParameterList);
 
-    let parameters: Vec<Parameter> = pair
-        .into_inner()
-        .flat_map(build_parameter)
-        .collect();
+    let parameters: Vec<Parameter> = pair.into_inner().flat_map(build_parameter).collect();
 
     Ok(parameters)
 }
