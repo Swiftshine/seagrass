@@ -1,8 +1,16 @@
 # Seagrass
 
-(i'll write details on what this actually is later since this is still a WIP)
+A scripting language focused on ease of file I/O for binary file formats and filesystem utility.
+
+### Notes
+
+Seagrass is a personal project and a work in progress; anything listed here might be subject to change or absent entirely.
+
+Seagrass' syntax is based on Rust's, but that's it. It doesn't have the ownership or memory rules associated with Rust and its compiler because Seagrass, an interpreted language for inherently "quick and dirty" operations, is not meant for that.
 
 ## Language Implementation
+
+There are several specific things that make Seagrass work the way it does.
 
 ### Tags
 
@@ -56,12 +64,12 @@ Padding between data types must always be explicit. When serializing, the value 
 #[pod]
 struct MyStruct {
     field_1: u8,
-    padding(3),
+    pad(3),
     field_2: u32
 }
 ```
 
-Alignment is similar to padding, but is used for serializable data types whose sizes can only be determined at runtime, specifying when the next field should begin.
+Alignment is similar to padding, but is used for fields that come after serializable data types whose sizes can only be determined at runtime, specifying when said field should begin.
 
 ```
 #[pod]
