@@ -6,7 +6,7 @@ A scripting language focused on ease of file I/O for binary file formats and fil
 
 Seagrass is a personal project and a work in progress; anything listed here might be subject to change or absent entirely.
 
-Seagrass' syntax is based on Rust's, but that's it. It doesn't have the ownership or memory rules associated with Rust and its compiler because Seagrass, an interpreted language for inherently "quick and dirty" operations, is not meant for that.
+Seagrass' syntax is based on Rust's (and is written in Rust), but that's it. It doesn't have the ownership or memory rules associated with Rust and its compiler because Seagrass, an interpreted language for inherently "quick and dirty" operations, is not meant for that.
 
 ## Language Implementation
 
