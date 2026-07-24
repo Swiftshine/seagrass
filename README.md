@@ -40,7 +40,7 @@ _All_ fields within a serializable POD struct must be serializable themselves, i
 
 #### Notes on Serializability
 
-The `string` data type is _not_ serializable by default _unless_ it's marked with the `#[serialize_as("...")]` attribute. Example:
+The `string` data type is _not_ serializable by default _unless_ it's marked with the `#[serialize_as("...")]` attribute. Note that strings tagged with this will be null-terminated. Example:
 
 ```
 #[pod]
@@ -67,8 +67,9 @@ Alignment is similar to padding, but is used for serializable data types whose s
 #[pod]
 struct MyStruct {
     field_1: u32,
+    #[serialize_as("ascii")]
     field_2: string,
-    align(4),
+    #[align(4)] // "this field will be serialized on a byte boundary of 4"
     field_3: u32
 }
 ```

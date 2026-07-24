@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::core::lang::ast::StructFieldDefinition;
+use crate::core::lang::ast::{StructFieldDefinition, StructMember};
 
 use crate::core::{
     lang::ast::{
@@ -97,6 +97,13 @@ impl StructDefinition {
             }),
         }
     }
+
+    pub fn fields(&self) -> impl Iterator<Item = &StructFieldDefinition> {
+        self.members.iter().filter_map(|member| match member {
+            StructMember::Field(field) => Some(field),
+            _ => None,
+        })
+    }
 }
 
 impl Attributable for StructFieldDefinition {
@@ -131,11 +138,31 @@ impl StructFieldDefinition {
             _ => unreachable!(),
         }
     }
+
+    pub fn alignment(&self) -> RuntimeResult<Option<usize>> {
+        let Ok(attribute) = self.get_attribute("align") else {
+            return Ok(None);
+        };
+
+        attribute.assert_argument_count(1)?;
+
+        match &attribute.arguments[0] {
+            Expression::Value(Value::U32(value)) => Ok(Some(*value as usize)),
+
+            Expression::Value(Value::S32(value)) if *value >= 0 => Ok(Some(*value as usize)),
+
+            other => Err(RuntimeError::InvalidAttributeArgument {
+                attribute: "align".to_string(),
+                expected: "positive integer".to_string(),
+                found: format!("{:?}", other),
+            }),
+        }
+    }
 }
 
 impl Runtime {
     pub fn validate_pod(&self, struct_definition: &StructDefinition) -> RuntimeResult<()> {
-        for field in &struct_definition.fields {
+        for field in struct_definition.fields() {
             self.validate_pod_type(field)?;
         }
 
@@ -289,10 +316,26 @@ impl Runtime {
 
                 let struct_byte_order = definition.byte_order()?;
 
-                for field in &definition.fields {
-                    let value = fields.get(&field.identifier).unwrap();
+                for member in &definition.members {
+                    match member {
+                        StructMember::Field(field) => {
+                            if let Some(alignment) = field.alignment()? {
+                                let remainder = output.len() % alignment;
 
-                    self.serialize_field(field, value, output, struct_byte_order)?;
+                                if remainder != 0 {
+                                    let padding = alignment - remainder;
+                                    output.resize(output.len() + padding, 0);
+                                }
+                            }
+
+                            let value = fields.get(&field.identifier).unwrap();
+                            self.serialize_field(field, value, output, struct_byte_order)?;
+                        }
+
+                        StructMember::Padding(count) => {
+                            output.resize(output.len() + *count, 0);
+                        }
+                    }
                 }
             }
 
@@ -317,7 +360,7 @@ impl Runtime {
 
         let mut struct_fields = HashMap::new();
 
-        for field_definition in &struct_field_definition.fields {
+        for field_definition in struct_field_definition.fields() {
             if !init
                 .initialized_fields
                 .iter()

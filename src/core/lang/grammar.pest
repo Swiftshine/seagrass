@@ -42,6 +42,7 @@ KeywordWhile = @{ "while" ~ KeywordBoundary }
 KeywordLoop = @{ "loop" ~ KeywordBoundary }
 KeywordBreak = @{ "break" ~ KeywordBoundary }
 KeywordSelf = @{ "self" ~ KeywordBoundary }
+KeywordPad = @{ "pad" ~ KeywordBoundary }
 
 // Execution
 Block = {
@@ -310,12 +311,21 @@ StructFieldInitializer = {
 StructDefinition = {
     Attribute* ~
     KeywordStruct ~ Identifier ~ LBrace ~
-        StructFields? ~
+        StructMembers? ~
     RBrace
 }
 
-StructFields = {
-    StructFieldDefinition ~ (Comma ~ StructFieldDefinition)*
+StructMembers = {
+    StructMember ~ (Comma ~ StructMember)*
+}
+
+StructMember = {
+    StructFieldDefinition |
+    PadDirective
+}
+
+PadDirective = {
+    KeywordPad ~ LParen ~ Integer ~ RParen
 }
 
 StructFieldDefinition = {

@@ -181,7 +181,13 @@ pub struct StructDefinition {
     pub attributes: Vec<Attribute>,
     pub identifier: String,
     // using vec here because the field order matters
-    pub fields: Vec<StructFieldDefinition>,
+    pub members: Vec<StructMember>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum StructMember {
+    Field(StructFieldDefinition),
+    Padding(usize),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -758,25 +764,53 @@ fn build_struct_definition(pair: Pair<Rule>) -> Result<StructDefinition> {
     // Identifier
     let identifier = inner.next().unwrap().to_string();
 
-    // StructFields?
-    let fields = match inner.next() {
-        Some(pair) => build_struct_field_definitions(pair)?,
+    // StructMembers?
+    let struct_members = match inner.next() {
+        Some(pair) => build_struct_members(pair)?,
         None => Vec::new(),
     };
 
     Ok(StructDefinition {
         attributes,
         identifier,
-        fields,
+        members: struct_members,
     })
 }
 
-fn build_struct_field_definitions(pair: Pair<Rule>) -> Result<Vec<StructFieldDefinition>> {
-    assert_eq!(pair.as_rule(), Rule::StructFields);
+fn build_struct_member(pair: Pair<Rule>) -> Result<StructMember> {
+    assert_eq!(pair.as_rule(), Rule::StructMember);
 
-    pair.into_inner()
-        .map(build_struct_field_definition)
-        .collect()
+    let inner = pair.into_inner().next().unwrap();
+
+    match inner.as_rule() {
+        Rule::StructFieldDefinition => {
+            Ok(StructMember::Field(build_struct_field_definition(inner)?))
+        }
+
+        Rule::PadDirective => Ok(StructMember::Padding(build_padding(inner)?)),
+
+        _ => unreachable!("{:?}", inner.as_rule()),
+    }
+}
+
+fn build_padding(pair: Pair<Rule>) -> Result<usize> {
+    assert_eq!(pair.as_rule(), Rule::PadDirective);
+
+    let mut inner = pair.into_inner();
+
+    // KeywordPad
+    inner.next();
+
+    // Integer
+    let amount = inner.next().unwrap().as_str().parse::<usize>()?;
+
+    Ok(amount)
+}
+
+fn build_struct_members(pair: Pair<Rule>) -> Result<Vec<StructMember>> {
+    assert_eq!(pair.as_rule(), Rule::StructMembers);
+
+    pair.into_inner().map(build_struct_member).collect()
 }
 
 fn build_struct_field_definition(pair: Pair<Rule>) -> Result<StructFieldDefinition> {
