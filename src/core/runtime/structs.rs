@@ -1,7 +1,14 @@
 use std::collections::HashMap;
 
-use crate::core::{lang::ast::{Attribute, DataType, Expression, MethodDefinition, StructDefinition, StructImpl, StructInitialization, Value}, runtime::{ControlFlow, Runtime, RuntimeError, RuntimeResult, RuntimeValue}};
+use crate::core::lang::ast::StructFieldDefinition;
 
+use crate::core::{
+    lang::ast::{
+        Attribute, DataType, Expression, MethodDefinition, StructDefinition, StructImpl,
+        StructInitialization, Value,
+    },
+    runtime::{ControlFlow, Runtime, RuntimeError, RuntimeResult, RuntimeValue},
+};
 
 impl StructImpl {
     pub fn get_method_definition(&self, identifier: &str) -> RuntimeResult<&MethodDefinition> {
@@ -15,57 +22,74 @@ impl StructImpl {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ByteOrder {
     Little,
     Big,
 }
 
+pub enum StringSerialization {
+    Ascii,
+}
 
-impl StructDefinition {
-    pub fn has_attribute(&self, identifier: &str) -> bool {
-        self.attributes
-            .iter()
-            .any(|a| a.identifier == identifier)
+impl Attribute {
+    pub fn assert_argument_count(&self, expected: usize) -> RuntimeResult<()> {
+        if self.arguments.len() != expected {
+            Err(RuntimeError::InvalidAttributeArgumentCount {
+                attribute: self.identifier.clone(),
+                expected,
+                found: self.arguments.len(),
+            })
+        } else {
+            Ok(())
+        }
+    }
+}
+
+pub trait Attributable {
+    fn has_attribute(&self, identifier: &'static str) -> bool;
+
+    fn get_attribute(&self, identifier: &'static str) -> RuntimeResult<&Attribute>;
+}
+
+impl Attributable for StructDefinition {
+    fn has_attribute(&self, identifier: &'static str) -> bool {
+        self.attributes.iter().any(|a| a.identifier == identifier)
     }
 
-    pub fn get_attribute(&self, identifier: &str) -> Option<&Attribute> {
+    fn get_attribute(&self, identifier: &'static str) -> RuntimeResult<&Attribute> {
         self.attributes
             .iter()
             .find(|attribute| attribute.identifier == identifier)
+            .ok_or(RuntimeError::AttributeNotFound(identifier))
     }
+}
 
+impl StructDefinition {
     // "is declared" because the user could say it's pod when it's really not
     pub fn is_declared_pod(&self) -> bool {
         self.has_attribute("pod")
     }
 
     pub fn byte_order(&self) -> RuntimeResult<ByteOrder> {
-        let Some(attribute) = self.get_attribute("byte_order") else {
+        let Ok(attribute) = self.get_attribute("byte_order") else {
             return Ok(ByteOrder::Little);
         };
-    
-        if attribute.arguments.len() != 1 {
-            return Err(RuntimeError::InvalidAttributeArgumentCount {
-                attribute: "byte_order".to_string(),
-                expected: 1,
-                found: attribute.arguments.len(),
-            });
-        }
-    
+
+        attribute.assert_argument_count(1)?;
+
         match &attribute.arguments[0] {
             Expression::Value(Value::String(value)) => match value.as_str() {
                 "little" => Ok(ByteOrder::Little),
                 "big" => Ok(ByteOrder::Big),
-    
+
                 other => Err(RuntimeError::InvalidAttributeArgument {
                     attribute: "byte_order".to_string(),
                     expected: "\"little\" or \"big\"".to_string(),
                     found: other.to_string(),
                 }),
             },
-    
+
             other => Err(RuntimeError::InvalidAttributeArgument {
                 attribute: "byte_order".to_string(),
                 expected: "string literal".to_string(),
@@ -75,33 +99,82 @@ impl StructDefinition {
     }
 }
 
+impl Attributable for StructFieldDefinition {
+    fn has_attribute(&self, identifier: &'static str) -> bool {
+        self.attributes.iter().any(|a| a.identifier == identifier)
+    }
+
+    fn get_attribute(&self, identifier: &'static str) -> RuntimeResult<&Attribute> {
+        self.attributes
+            .iter()
+            .find(|attribute| attribute.identifier == identifier)
+            .ok_or(RuntimeError::AttributeNotFound(identifier))
+    }
+}
+
+impl StructFieldDefinition {
+    pub fn string_serialization(&self) -> RuntimeResult<Option<StringSerialization>> {
+        let Ok(attribute) = self.get_attribute("serialize_as") else {
+            return Ok(None);
+        };
+
+        attribute.assert_argument_count(1)?;
+
+        match &attribute.arguments[0] {
+            Expression::Value(Value::String(s)) => match s.as_str() {
+                "ascii" => Ok(Some(StringSerialization::Ascii)),
+                _ => Err(RuntimeError::UnexpectedAttributeArgument {
+                    attribute: attribute.identifier.clone(),
+                    found: s.clone(),
+                }),
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl Runtime {
     pub fn validate_pod(&self, struct_definition: &StructDefinition) -> RuntimeResult<()> {
         for field in &struct_definition.fields {
-            self.validate_pod_type(&field.data_type)?;
+            self.validate_pod_type(field)?;
         }
 
         Ok(())
     }
 
-    fn validate_pod_type(&self, data_type: &DataType) -> RuntimeResult<()> {
-        match data_type {
-            DataType::U32
-            | DataType::S32
-            | DataType::Bool => Ok(()),
-    
-            DataType::String | DataType::Reference(_) => {
-                Err(RuntimeError::NonPODType(data_type.to_string()))
-            }
-    
-            DataType::UserDefined(name) => {
-                let definition = self.get_struct_definition(name)?;
-    
-                if !definition.is_declared_pod() {
-                    return Err(RuntimeError::NonPODType(name.clone()));
+    fn validate_pod_type(&self, field_definition: &StructFieldDefinition) -> RuntimeResult<()> {
+        // special exceptions
+        if matches!(field_definition.data_type, DataType::String)
+            && let Ok(attribute) = field_definition.get_attribute("serialize_as")
+        {
+            if let Expression::Value(Value::String(string)) = &attribute.arguments[0] {
+                match string.as_str() {
+                    "ascii" => return Ok(()),
+                    _ => {
+                        return Err(RuntimeError::UnexpectedAttributeArgument {
+                            attribute: attribute.identifier.clone(),
+                            found: string.clone(),
+                        });
+                    }
                 }
-    
-                self.validate_pod(definition)
+            }
+        }
+
+        match &field_definition.data_type {
+            DataType::U32 | DataType::S32 | DataType::Bool => Ok(()),
+
+            DataType::String | DataType::Reference(_) => Err(RuntimeError::NonPODType(
+                field_definition.data_type.to_string(),
+            )),
+
+            DataType::UserDefined(identifier) => {
+                let struct_field_definition = self.get_struct_definition(&identifier)?;
+
+                if !struct_field_definition.is_declared_pod() {
+                    return Err(RuntimeError::NonPODType(identifier.clone()));
+                }
+
+                self.validate_pod(struct_field_definition)
             }
         }
     }
@@ -113,7 +186,7 @@ impl Runtime {
         struct_reference: RuntimeValue,
         args: Vec<RuntimeValue>,
     ) -> RuntimeResult<RuntimeValue> {
-        // make sure we have the struct definition and the function the method call
+        // make sure we have the struct struct_field_definition and the function the method call
         // is asking for
         self.get_struct_definition(struct_identifier)?;
 
@@ -147,32 +220,43 @@ impl Runtime {
         }
     }
 
-    pub fn serialize_into(
-        &self,
-        value: &RuntimeValue,
-        output: &mut Vec<u8>,
-    ) -> RuntimeResult<()> {
+    pub fn serialize_into(&self, value: &RuntimeValue, output: &mut Vec<u8>) -> RuntimeResult<()> {
         let byte_order = ByteOrder::Little; // todo! do self.byte_order instead and make this a runtime configuration
 
         match value {
             RuntimeValue::Reference(reference) => {
                 let value = reference.borrow();
-    
-                self.serialize_value(
-                    &value.value(),
-                    output,
-                    byte_order
-                )
+
+                self.serialize_value(&value.value(), output, byte_order)
             }
-    
-            value => {
-                self.serialize_value(
-                    value,
-                    output,
-                    byte_order
-                )
+
+            value => self.serialize_value(value, output, byte_order),
+        }
+    }
+
+    fn serialize_field(
+        &self,
+        field: &StructFieldDefinition,
+        value: &RuntimeValue,
+        output: &mut Vec<u8>,
+        byte_order: ByteOrder,
+    ) -> RuntimeResult<()> {
+        if let RuntimeValue::String(s) = value {
+            match field.string_serialization()? {
+                Some(StringSerialization::Ascii) => {
+                    if !s.is_ascii() {
+                        return Err(RuntimeError::NonAsciiString(s.clone()));
+                    }
+
+                    output.extend(s.bytes());
+                    output.push(0);
+                    return Ok(());
+                }
+                None => {}
             }
         }
+
+        self.serialize_value(value, output, byte_order)
     }
 
     fn serialize_value(
@@ -182,87 +266,66 @@ impl Runtime {
         byte_order: ByteOrder,
     ) -> RuntimeResult<()> {
         match value {
-            RuntimeValue::U32(value) => {
-                match byte_order {
-                    ByteOrder::Little => {
-                        output.extend(value.to_le_bytes())
-                    }
+            RuntimeValue::U32(value) => match byte_order {
+                ByteOrder::Little => output.extend(value.to_le_bytes()),
 
-                    ByteOrder::Big => {
-                        output.extend(value.to_be_bytes())
-                    }
-                }
-            }
+                ByteOrder::Big => output.extend(value.to_be_bytes()),
+            },
 
-            RuntimeValue::S32(value) => {
-                match byte_order {
-                    ByteOrder::Little => {
-                        output.extend(value.to_le_bytes())
-                    }
+            RuntimeValue::S32(value) => match byte_order {
+                ByteOrder::Little => output.extend(value.to_le_bytes()),
 
-                    ByteOrder::Big => {
-                        output.extend(value.to_be_bytes())
-                    }
-                }
-            }
+                ByteOrder::Big => output.extend(value.to_be_bytes()),
+            },
 
             RuntimeValue::Bool(value) => {
                 output.push(if *value { 1 } else { 0 });
             }
 
-            RuntimeValue::Struct {
-                definition,
-                fields,
-            } => {
+            RuntimeValue::Struct { definition, fields } => {
                 if !definition.is_declared_pod() {
-                    return Err(RuntimeError::NonPODType(
-                        definition.identifier.clone()
-                    ));
+                    return Err(RuntimeError::NonPODType(definition.identifier.clone()));
                 }
 
                 let struct_byte_order = definition.byte_order()?;
 
                 for field in &definition.fields {
-                    let value = fields
-                        .get(&field.identifier)
-                        .unwrap();
+                    let value = fields.get(&field.identifier).unwrap();
 
-                    self.serialize_value(
-                        value,
-                        output,
-                        struct_byte_order,
-                    )?;
+                    self.serialize_field(field, value, output, struct_byte_order)?;
                 }
             }
 
             _ => {
-                return Err(RuntimeError::NonPODType(
-                    value.data_type()?.to_string()
-                ));
+                return Err(RuntimeError::NonPODType(value.data_type()?.to_string()));
             }
         }
 
         Ok(())
     }
 
-    pub fn initialize_struct(&mut self, init: &StructInitialization) -> RuntimeResult<RuntimeValue> {
-        let definition = self.get_struct_definition(&init.identifier)?.clone();
+    pub fn initialize_struct(
+        &mut self,
+        init: &StructInitialization,
+    ) -> RuntimeResult<RuntimeValue> {
+        let struct_field_definition = self.get_struct_definition(&init.identifier)?.clone();
 
         let mut runtime_struct = RuntimeValue::Struct {
-            definition: definition.clone(),
+            definition: struct_field_definition.clone(),
             fields: HashMap::new(),
         };
 
         let mut struct_fields = HashMap::new();
 
-        for field_definition in &definition.fields {
+        for field_definition in &struct_field_definition.fields {
             if !init
                 .initialized_fields
-                .iter().any(|f| f.identifier == field_definition.identifier)
+                .iter()
+                .any(|f| f.identifier == field_definition.identifier)
             {
                 if self.config.error_on_incomplete_struct_initialization {
                     return Err(RuntimeError::IncompleteStructInitialization(
-                        definition.identifier.clone(),
+                        struct_field_definition.identifier.clone(),
                     ));
                 } else {
                     todo!("implement default values");
@@ -281,7 +344,7 @@ impl Runtime {
                     Err(RuntimeError::AnnotationError { expected, found }) => {
                         return Err(RuntimeError::InvalidStructFieldInitialization {
                             field_name: field_definition.identifier.clone(),
-                            struct_name: definition.identifier.clone(),
+                            struct_name: struct_field_definition.identifier.clone(),
                             expected,
                             found,
                         });

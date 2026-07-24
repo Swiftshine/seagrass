@@ -51,6 +51,8 @@ pub enum RuntimeError {
     StructImplNotFound(String),
     #[error("Expected reference, found '{0}'")]
     ExpectedReference(String),
+    #[error("Attribute '{0}' not found")]
+    AttributeNotFound(&'static str),
 
     // Mismatches
     #[error("Unsupported binary operation for '[{lhs_type}] {operation} [{rhs_type}]'")]
@@ -98,13 +100,18 @@ pub enum RuntimeError {
         expected: String,
         found: String,
     },
-
+    #[error("Attribute '{attribute}' was given '{found}', but it is not a valid argument")]
+    UnexpectedAttributeArgument { attribute: String, found: String },
     #[error("Attribute '{attribute}' expects {expected} arguments, but found {found}")]
     InvalidAttributeArgumentCount {
         attribute: String,
         expected: usize,
         found: usize,
     },
+
+    // Edge cases
+    #[error("Attempted to serialize the following non-ascii string as ascii: {0}")]
+    NonAsciiString(String),
 }
 
 impl RuntimeError {

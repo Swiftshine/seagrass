@@ -1,4 +1,7 @@
-use crate::core::{lang::ast::{BinaryOperator, DataType, Expression, Value}, runtime::{Runtime, RuntimeError, RuntimeResult, RuntimeValue}};
+use crate::core::{
+    lang::ast::{BinaryOperator, DataType, Expression, Value},
+    runtime::{Runtime, RuntimeError, RuntimeResult, RuntimeValue},
+};
 
 impl Runtime {
     pub fn evaluate_boolean_expression(&mut self, expression: &Expression) -> RuntimeResult<bool> {
@@ -27,8 +30,10 @@ impl Runtime {
 
             (RuntimeValue::Bool(b), DataType::Bool) => Ok(RuntimeValue::Bool(b)),
 
+            (RuntimeValue::String(s), DataType::String) => Ok(RuntimeValue::String(s)),
+
             (value, DataType::UserDefined(expected))
-                if value.data_type()?.to_string() == *expected =>
+                if value.data_type()? == DataType::UserDefined(expected.clone()) =>
             {
                 Ok(value)
             }
@@ -131,20 +136,14 @@ impl Runtime {
 
     fn evaluate_method_receiver(&mut self, expression: &Expression) -> RuntimeResult<RuntimeValue> {
         match expression {
-            Expression::Reference(_) => {
-                self.evaluate_expression(expression)
-            }
-        
+            Expression::Reference(_) => self.evaluate_expression(expression),
+
             Expression::Value(Value::Identifier(name)) => {
-                Ok(RuntimeValue::Reference(
-                    self.get_variable(name)?
-                ))
+                Ok(RuntimeValue::Reference(self.get_variable(name)?))
             }
-        
-            _ => {
-                Err(RuntimeError::InvalidReferenceTarget)
-            }
-        }        
+
+            _ => Err(RuntimeError::InvalidReferenceTarget),
+        }
     }
 
     fn evaluate_binary(

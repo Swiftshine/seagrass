@@ -186,6 +186,7 @@ pub struct StructDefinition {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct StructFieldDefinition {
+    pub attributes: Vec<Attribute>,
     pub identifier: String,
     pub data_type: DataType,
 }
@@ -748,7 +749,7 @@ fn build_struct_definition(pair: Pair<Rule>) -> Result<StructDefinition> {
 
     let mut inner = pair.into_inner();
 
-    // Attributes?
+    // Attributes
     let attributes = collect_attributes(&mut inner)?;
 
     // KeywordStruct
@@ -783,6 +784,9 @@ fn build_struct_field_definition(pair: Pair<Rule>) -> Result<StructFieldDefiniti
 
     let mut inner = pair.into_inner();
 
+    // Attributes
+    let attributes = collect_attributes(&mut inner)?;
+
     // Identifier
     let identifier = inner.next().unwrap().to_string();
 
@@ -790,6 +794,7 @@ fn build_struct_field_definition(pair: Pair<Rule>) -> Result<StructFieldDefiniti
     let data_type = build_data_type(inner.next().unwrap())?;
 
     Ok(StructFieldDefinition {
+        attributes,
         identifier,
         data_type,
     })
@@ -847,7 +852,7 @@ fn build_function_definition(pair: Pair<Rule>) -> Result<FunctionDefinition> {
 
     let mut inner = pair.into_inner();
 
-    // Attributes?
+    // Attributes
     let attributes = collect_attributes(&mut inner)?;
 
     // KeywordFn
@@ -878,7 +883,7 @@ fn build_method_definition(pair: Pair<Rule>) -> Result<MethodDefinition> {
 
     let mut inner = pair.into_inner();
 
-    // Attributes?
+    // Attributes
     let attributes = collect_attributes(&mut inner)?;
 
     // KeywordFn
