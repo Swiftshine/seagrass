@@ -102,6 +102,7 @@ EqualTo         = { "==" }
 NotEqualTo      = { "!=" }
 GreaterThanOrEqualTo = { ">=" }
 LessThanOrEqualTo = { "<=" }
+DotDot = { ".." }
 
 ComparisonOp = _{
     GreaterThanOrEqualTo |
@@ -300,7 +301,10 @@ Atom = {
 }
 
 StructInitialization = {
-    Identifier ~ LBrace ~ StructFieldInitializers? ~ RBrace
+    Identifier ~ LBrace ~
+        StructFieldInitializers? ~
+        (Comma? ~ DotDot)? ~
+    RBrace
 }
 
 StructFieldInitializers = {

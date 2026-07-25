@@ -111,6 +111,8 @@ pub enum RuntimeError {
     },
     #[error("Invalid function arguments for [signature]. {note}")]
     InvalidFunctionArguments { signature: String, note: String },
+    #[error("References cannot have default values")]
+    CannotDefaultInitializeReference,
 
     // De/Serialization errors
     #[error("Attempted to serialize the following non-ascii string as ascii: {0}")]
@@ -148,22 +150,18 @@ pub type StatementResult = Result<ControlFlow, RuntimeError>;
 #[derive(Clone, Copy)]
 pub enum RuntimeConfigOption {
     PreserveExpiredFrames(bool),
-    ErrorOnIncompleteFieldInitialization(bool),
 }
 
 #[derive(Debug)]
 pub struct RuntimeConfig {
     /// (Development) Allows expired function frames and scopes to be preserved to inspect its end-of-life state.
     preserve_expired_frames: bool,
-    /// (Interpreter) Raises an error if struct initialization does not list every variable.
-    error_on_incomplete_struct_initialization: bool,
 }
 
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
             preserve_expired_frames: false,
-            error_on_incomplete_struct_initialization: true,
         }
     }
 }
@@ -206,10 +204,6 @@ impl Runtime {
         match option {
             RuntimeConfigOption::PreserveExpiredFrames(should_preserve) => {
                 self.config.preserve_expired_frames = should_preserve;
-            }
-
-            RuntimeConfigOption::ErrorOnIncompleteFieldInitialization(should_error) => {
-                self.config.error_on_incomplete_struct_initialization = should_error;
             }
         }
     }

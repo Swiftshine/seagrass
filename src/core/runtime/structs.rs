@@ -345,39 +345,49 @@ impl Runtime {
         Ok(())
     }
 
+    fn default_value(&self, data_type: &DataType) -> RuntimeResult<RuntimeValue> {
+        match data_type {
+            DataType::U32 => Ok(RuntimeValue::U32(0)),
+
+            DataType::S32 => Ok(RuntimeValue::S32(0)),
+
+            DataType::Bool => Ok(RuntimeValue::Bool(false)),
+
+            DataType::String => Ok(RuntimeValue::String(String::new())),
+
+            DataType::Reference(_) => Err(RuntimeError::CannotDefaultInitializeReference),
+
+            DataType::UserDefined(identifier) => {
+                let definition = self.get_struct_definition(identifier)?.clone();
+
+                let mut fields = HashMap::new();
+
+                for field in definition.fields() {
+                    fields.insert(
+                        field.identifier.clone(),
+                        self.default_value(&field.data_type)?,
+                    );
+                }
+
+                Ok(RuntimeValue::Struct { definition, fields })
+            }
+        }
+    }
+
     pub fn initialize_struct(
         &mut self,
         init: &StructInitialization,
     ) -> RuntimeResult<RuntimeValue> {
-        let struct_field_definition = self.get_struct_definition(&init.identifier)?.clone();
-
-        let mut runtime_struct = RuntimeValue::Struct {
-            definition: struct_field_definition.clone(),
-            fields: HashMap::new(),
-        };
+        let struct_definition = self.get_struct_definition(&init.identifier)?.clone();
 
         let mut struct_fields = HashMap::new();
 
-        for field_definition in struct_field_definition.fields() {
-            if !init
+        for field_definition in struct_definition.fields() {
+            if let Some(initialized_field) = init
                 .initialized_fields
                 .iter()
-                .any(|f| f.identifier == field_definition.identifier)
+                .find(|f| f.identifier == field_definition.identifier)
             {
-                if self.config.error_on_incomplete_struct_initialization {
-                    return Err(RuntimeError::IncompleteStructInitialization(
-                        struct_field_definition.identifier.clone(),
-                    ));
-                } else {
-                    todo!("implement default values");
-                }
-            } else {
-                let initialized_field = init
-                    .initialized_fields
-                    .iter()
-                    .find(|f| f.identifier == field_definition.identifier)
-                    .unwrap();
-
                 let value = self.evaluate_expression(&initialized_field.expression)?;
 
                 let value = match self.apply_type_annotation(value, &field_definition.data_type) {
@@ -385,7 +395,7 @@ impl Runtime {
                     Err(RuntimeError::AnnotationError { expected, found }) => {
                         return Err(RuntimeError::InvalidStructFieldInitialization {
                             field_name: field_definition.identifier.clone(),
-                            struct_name: struct_field_definition.identifier.clone(),
+                            struct_name: struct_definition.identifier.clone(),
                             expected,
                             found,
                         });
@@ -393,17 +403,22 @@ impl Runtime {
 
                     Err(err) => return Err(err),
                 };
-                let value = self.apply_type_annotation(value, &field_definition.data_type)?;
 
-                struct_fields.insert(initialized_field.identifier.clone(), value);
+                struct_fields.insert(field_definition.identifier.clone(), value);
+            } else if init.use_defaults {
+                let value = self.default_value(&field_definition.data_type)?;
+                struct_fields.insert(field_definition.identifier.clone(), value);
+            } else {
+                return Err(RuntimeError::IncompleteStructInitialization(
+                    struct_definition.identifier.clone(),
+                ));
             }
         }
 
-        if let RuntimeValue::Struct { fields, .. } = &mut runtime_struct {
-            *fields = struct_fields;
-        }
-
-        Ok(runtime_struct)
+        Ok(RuntimeValue::Struct {
+            definition: struct_definition,
+            fields: struct_fields,
+        })
     }
 
     pub fn deserialize(&self, data_type: &DataType, bytes: &[u8]) -> RuntimeResult<RuntimeValue> {

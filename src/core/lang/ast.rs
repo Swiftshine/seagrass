@@ -100,6 +100,7 @@ pub enum BinaryOperator {
 pub struct StructInitialization {
     pub identifier: String,
     pub initialized_fields: Vec<StructFieldInitialization>,
+    pub use_defaults: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -707,19 +708,28 @@ fn build_struct_initialization(pair: Pair<Rule>) -> Result<StructInitialization>
     // Identifier
     let identifier = inner.next().unwrap().to_string();
 
-    // StructFieldInitializers?
-    let fields = match inner.next() {
-        Some(pair) if pair.as_rule() == Rule::StructFieldInitializers => {
-            build_struct_field_initializers(pair)?
-        }
+    let mut initialized_fields = Vec::new();
+    let mut use_defaults = false;
 
-        // empty initializers
-        _ => Vec::new(),
-    };
+    while let Some(pair) = inner.next() {
+        match pair.as_rule() {
+            // StructFieldInitializers?
+            Rule::StructFieldInitializers => {
+                initialized_fields = build_struct_field_initializers(pair)?;
+            }
+
+            Rule::DotDot => {
+                use_defaults = true;
+            }
+
+            _ => unreachable!(),
+        }
+    }
 
     Ok(StructInitialization {
         identifier,
-        initialized_fields: fields,
+        initialized_fields,
+        use_defaults,
     })
 }
 
