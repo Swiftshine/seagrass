@@ -248,16 +248,14 @@ impl Runtime {
     }
 
     pub fn serialize_into(&self, value: &RuntimeValue, output: &mut Vec<u8>) -> RuntimeResult<()> {
-        let byte_order = ByteOrder::Little; // todo! do self.byte_order instead and make this a runtime configuration
-
         match value {
             RuntimeValue::Reference(reference) => {
                 let value = reference.borrow();
 
-                self.serialize_value(&value.value(), output, byte_order)
+                self.serialize_value(&value.value(), output, self.byte_order)
             }
 
-            value => self.serialize_value(value, output, byte_order),
+            value => self.serialize_value(value, output, self.byte_order),
         }
     }
 
@@ -406,5 +404,157 @@ impl Runtime {
         }
 
         Ok(runtime_struct)
+    }
+
+    pub fn deserialize(&self, data_type: &DataType, bytes: &[u8]) -> RuntimeResult<RuntimeValue> {
+        let mut offset = 0;
+
+        self.deserialize_value(data_type, bytes, &mut offset, self.byte_order)
+    }
+
+    fn deserialize_value(
+        &self,
+        data_type: &DataType,
+        bytes: &[u8],
+        offset: &mut usize,
+        byte_order: ByteOrder,
+    ) -> RuntimeResult<RuntimeValue> {
+        match data_type {
+            DataType::U32 => {
+                let slice = self.read_exact::<4>(bytes, offset)?;
+
+                Ok(RuntimeValue::U32(match byte_order {
+                    ByteOrder::Little => u32::from_le_bytes(slice),
+                    ByteOrder::Big => u32::from_be_bytes(slice),
+                }))
+            }
+
+            DataType::S32 => {
+                let slice = self.read_exact::<4>(bytes, offset)?;
+
+                Ok(RuntimeValue::S32(match byte_order {
+                    ByteOrder::Little => i32::from_le_bytes(slice),
+                    ByteOrder::Big => i32::from_be_bytes(slice),
+                }))
+            }
+
+            DataType::Bool => {
+                let value = self.read_byte(bytes, offset)?;
+
+                match value {
+                    0 => Ok(RuntimeValue::Bool(false)),
+                    1 => Ok(RuntimeValue::Bool(true)),
+                    other => Err(RuntimeError::SerializationError(format!(
+                        "expected bool, found a value of 0x{:02}",
+                        other
+                    ))),
+                }
+            }
+
+            DataType::String => {
+                let mut string = Vec::new();
+
+                loop {
+                    let byte = self.read_byte(bytes, offset)?;
+
+                    if byte == 0 {
+                        break;
+                    }
+
+                    string.push(byte);
+                }
+
+                let string = String::from_utf8(string)
+                    .map_err(|_| RuntimeError::SerializationError("Invalid UTF-8".to_string()))?;
+
+                Ok(RuntimeValue::String(string))
+            }
+
+            DataType::Reference(_) => {
+                unreachable!("cannot deserialize references")
+            }
+
+            DataType::UserDefined(identifier) => {
+                let definition = self.get_struct_definition(identifier)?.clone();
+
+                if !definition.is_declared_pod() {
+                    return Err(RuntimeError::NonPODType(identifier.clone()));
+                }
+
+                let byte_order = definition.byte_order()?;
+
+                let mut fields = HashMap::new();
+
+                for member in &definition.members {
+                    match member {
+                        StructMember::Padding(count) => {
+                            *offset += *count;
+                        }
+
+                        StructMember::Field(field) => {
+                            if let Some(alignment) = field.alignment()? {
+                                let remainder = *offset % alignment;
+
+                                if remainder != 0 {
+                                    *offset += alignment - remainder;
+                                }
+                            }
+
+                            let value = if matches!(field.data_type, DataType::String) {
+                                match field.string_serialization()? {
+                                    Some(StringSerialization::Ascii) => self.deserialize_value(
+                                        &DataType::String,
+                                        bytes,
+                                        offset,
+                                        byte_order,
+                                    )?,
+
+                                    None => self.deserialize_value(
+                                        &field.data_type,
+                                        bytes,
+                                        offset,
+                                        byte_order,
+                                    )?,
+                                }
+                            } else {
+                                self.deserialize_value(&field.data_type, bytes, offset, byte_order)?
+                            };
+
+                            fields.insert(field.identifier.clone(), value);
+                        }
+                    }
+                }
+
+                Ok(RuntimeValue::Struct { definition, fields })
+            }
+        }
+    }
+
+    fn read_byte(&self, bytes: &[u8], offset: &mut usize) -> RuntimeResult<u8> {
+        if *offset >= bytes.len() {
+            return Err(RuntimeError::UnexpectedEOF);
+        }
+
+        let value = bytes[*offset];
+        *offset += 1;
+
+        Ok(value)
+    }
+
+    fn read_exact<const N: usize>(
+        &self,
+        bytes: &[u8],
+        offset: &mut usize,
+    ) -> RuntimeResult<[u8; N]> {
+        if *offset + N > bytes.len() {
+            return Err(RuntimeError::UnexpectedEOF);
+        }
+
+        let mut result = [0u8; N];
+        result.copy_from_slice(&bytes[*offset..*offset + N]);
+
+        *offset += N;
+
+        Ok(result)
     }
 }

@@ -16,6 +16,7 @@ use crate::core::{
     runtime::{
         functions::{FunctionFrame, RuntimeFunction},
         scopes::{RuntimeScope, RuntimeScopeType},
+        structs::ByteOrder,
         value::RuntimeVariable,
     },
 };
@@ -108,10 +109,16 @@ pub enum RuntimeError {
         expected: usize,
         found: usize,
     },
+    #[error("Invalid function arguments for [signature]. {note}")]
+    InvalidFunctionArguments { signature: String, note: String },
 
-    // Edge cases
+    // De/Serialization errors
     #[error("Attempted to serialize the following non-ascii string as ascii: {0}")]
     NonAsciiString(String),
+    #[error("Unexpectedly reached EOF when deserializing file")]
+    UnexpectedEOF,
+    #[error("Serialization error: {0}")]
+    SerializationError(String), // bleh
 }
 
 impl RuntimeError {
@@ -171,6 +178,7 @@ pub struct Runtime {
     structs: HashMap<String, Rc<StructDefinition>>,
     struct_impls: HashMap<String, Rc<StructImpl>>,
     config: RuntimeConfig,
+    byte_order: ByteOrder,
 }
 
 impl Default for Runtime {
@@ -190,6 +198,7 @@ impl Runtime {
             structs: HashMap::new(),
             struct_impls: HashMap::new(),
             config: RuntimeConfig::default(),
+            byte_order: ByteOrder::Little,
         }
     }
 
@@ -338,5 +347,9 @@ impl Runtime {
         } else {
             Ok(())
         }
+    }
+
+    pub fn set_byte_order(&mut self, byte_order: ByteOrder) {
+        self.byte_order = byte_order;
     }
 }

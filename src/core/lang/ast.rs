@@ -136,6 +136,7 @@ pub struct Block {
 pub struct FunctionCall {
     pub identifier: String,
     pub arguments: Vec<Expression>,
+    pub generics: Vec<DataType>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -1005,6 +1006,9 @@ fn build_function_call(pair: Pair<Rule>) -> Result<FunctionCall> {
     // QualifiedIdentifier
     let identifier = inner.next().unwrap().to_string();
 
+    // GenericArguments?
+    let generics = collect_generics(&mut inner)?;
+
     // ArgumentList?
     let arguments = match inner.next() {
         Some(pair) if pair.as_rule() == Rule::ArgumentList => build_argument_list(pair)?,
@@ -1016,7 +1020,24 @@ fn build_function_call(pair: Pair<Rule>) -> Result<FunctionCall> {
     Ok(FunctionCall {
         identifier,
         arguments,
+        generics,
     })
+}
+
+fn collect_generics(inner: &mut pest::iterators::Pairs<Rule>) -> Result<Vec<DataType>> {
+    let mut generics = Vec::new();
+
+    if let Some(pair) = inner.peek() {
+        if pair.as_rule() == Rule::GenericArguments {
+            let pair = inner.next().unwrap(); // consume it
+
+            for pair in pair.into_inner() {
+                generics.push(build_data_type(pair)?);
+            }
+        }
+    }
+
+    Ok(generics)
 }
 
 fn build_argument_list(pair: Pair<Rule>) -> Result<Vec<Expression>> {

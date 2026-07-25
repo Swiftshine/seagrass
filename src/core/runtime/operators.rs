@@ -43,6 +43,7 @@ impl RuntimeValue {
 
             (RuntimeValue::U32(a), RuntimeValue::U32(b)) => Ok(RuntimeValue::U32(a * b)),
 
+            (RuntimeValue::U32(a), RuntimeValue::S32(b)) => Ok(RuntimeValue::U32(a * b as u32)),
             _ => Err(RuntimeError::unsupported_binary_operation(
                 lhs_type, "*", rhs_type,
             )),

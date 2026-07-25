@@ -1,7 +1,13 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::core::{lang::ast::{Block, FunctionDefinition}, runtime::{ControlFlow, Runtime, RuntimeError, RuntimeResult, RuntimeScope, RuntimeScopeType, RuntimeValue, RuntimeVariable, StatementResult, value::RuntimeReference}};
-
+use crate::core::{
+    lang::ast::{Block, DataType, FunctionDefinition},
+    native::NativeFunctionContext,
+    runtime::{
+        ControlFlow, Runtime, RuntimeError, RuntimeResult, RuntimeScope, RuntimeScopeType,
+        RuntimeValue, RuntimeVariable, StatementResult, value::RuntimeReference,
+    },
+};
 
 #[derive(Debug)]
 pub struct FunctionFrame {
@@ -59,8 +65,7 @@ impl FunctionFrame {
     }
 }
 
-
-pub type NativeFunction = fn(&mut Runtime, Vec<RuntimeValue>) -> RuntimeResult<RuntimeValue>;
+pub type NativeFunction = fn(NativeFunctionContext) -> RuntimeResult<RuntimeValue>;
 
 #[derive(Debug, Clone)]
 pub enum RuntimeFunction {
@@ -97,6 +102,7 @@ impl Runtime {
         &mut self,
         identifier: &str,
         args: Vec<RuntimeValue>,
+        generics: &Vec<DataType>,
     ) -> RuntimeResult<RuntimeValue> {
         let func = self
             .functions
@@ -105,7 +111,9 @@ impl Runtime {
             .ok_or(RuntimeError::FunctionNotFound(identifier.to_string()))?;
 
         match func {
-            RuntimeFunction::Native(native) => native(self, args),
+            RuntimeFunction::Native(native) => {
+                native(NativeFunctionContext::new(self, args, generics))
+            }
 
             RuntimeFunction::User(func) => {
                 let args = Self::collect_runtime_function_arguments(&func.parameters, args)?;

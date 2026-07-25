@@ -57,7 +57,11 @@ FunctionDefinition = {
 }
 
 FunctionCall = {
-    QualifiedIdentifier ~ LParen ~ ArgumentList? ~ RParen
+    QualifiedIdentifier ~ GenericArguments? ~ LParen ~ ArgumentList? ~ RParen
+}
+
+GenericArguments = {
+    "<" ~ DataType ~ (Comma ~ DataType)* ~ ">"
 }
 
 ParameterList = { // only allowing our defined data types for now
@@ -98,7 +102,6 @@ EqualTo         = { "==" }
 NotEqualTo      = { "!=" }
 GreaterThanOrEqualTo = { ">=" }
 LessThanOrEqualTo = { "<=" }
-
 
 ComparisonOp = _{
     GreaterThanOrEqualTo |

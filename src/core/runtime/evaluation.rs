@@ -56,7 +56,9 @@ impl Runtime {
                     .map(|expr| self.evaluate_expression(expr))
                     .collect::<RuntimeResult<Vec<_>>>()?;
 
-                self.call_function(&call.identifier, args)
+                let generics = &call.generics;
+
+                self.call_function(&call.identifier, args, generics)
             }
 
             Expression::Binary { lhs, rhs, operator } => {

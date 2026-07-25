@@ -1,4 +1,10 @@
-use crate::core::{lang::ast::{Assignment, AssignmentTarget, Block, ControlStatement, Expression, Program, Return, Statement}, runtime::{ControlFlow, Runtime, RuntimeResult, StatementResult}};
+use crate::core::{
+    lang::ast::{
+        Assignment, AssignmentTarget, Block, ControlStatement, Expression, Program, Return,
+        Statement,
+    },
+    runtime::{ControlFlow, Runtime, RuntimeResult, StatementResult},
+};
 
 impl Runtime {
     pub fn execute(&mut self, program: &Program) -> RuntimeResult<()> {
@@ -35,7 +41,7 @@ impl Runtime {
 
         // call main()
         if self.get_function("main").is_ok() {
-            self.call_function("main", vec![])?;
+            self.call_function("main", vec![], &vec![])?;
         }
 
         Ok(())
