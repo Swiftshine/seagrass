@@ -16,3 +16,24 @@ include statements
 - i'd also like some functions to run only when they're configured to upon load, perhaps to initialise values or something
 
 arrays + vectors
+
+- dependent-length arrays might look something like this:
+
+```rs
+struct MyStruct {
+    count: u32,
+    #[length(count)]
+    things: [u32]
+}
+```
+
+enums
+
+- pure, numerical-only enums
+- enums that contain data based on values
+
+REAL ERROR PARSING!!!!!!! right now it's ambiguous as hell
+
+utility functions perhaps
+
+- crc32, md5, sha256, the like. requires that a data type be serializable

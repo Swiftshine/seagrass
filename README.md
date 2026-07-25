@@ -24,7 +24,7 @@ There are several specific things that make Seagrass work the way it does.
 
 Tags modify how the language, and certain elements, may be interpreted. Tags that are applied to things such as structs and functions are called attributes. Tags that might be used include:
 
-```
+```rs
 #[pod] // used on a struct to indicate that it can be read and written to using a stream of bytes
 #[byte_order("big")] // self-explanatory
 
@@ -39,7 +39,7 @@ Tags modify how the language, and certain elements, may be interpreted. Tags tha
 
 Serializable structs must be marked as POD with the `#[pod]` attribute, as a promise that the struct has a stable memory layout.
 
-```
+```rs
 // this one cannot be serialized
 struct StructOne {
     field_1: u32
@@ -58,7 +58,7 @@ _All_ fields within a serializable POD struct must be serializable themselves, i
 
 The `string` data type is _not_ serializable by default _unless_ it's marked with the `#[serialize_as("...")]` attribute. Note that strings tagged with this will be null-terminated. Example:
 
-```
+```rs
 #[pod]
 struct MyStruct {
     #[serialize_as("ascii")] // null-terminated
@@ -68,7 +68,7 @@ struct MyStruct {
 
 Padding between data types must always be explicit. When serializing, the value used to fill in gaps is `0x00`.
 
-```
+```rs
 #[pod]
 struct MyStruct {
     field_1: u8,
@@ -79,7 +79,7 @@ struct MyStruct {
 
 Alignment is similar to padding, but is used for fields that come after serializable data types whose sizes can only be determined at runtime, specifying when said field should begin.
 
-```
+```rs
 #[pod]
 struct MyStruct {
     field_1: u32,
