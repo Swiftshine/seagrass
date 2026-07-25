@@ -37,3 +37,5 @@ REAL ERROR PARSING!!!!!!! right now it's ambiguous as hell
 utility functions perhaps
 
 - crc32, md5, sha256, the like. requires that a data type be serializable
+
+make file/io function tests (make them return a vec instead of a runtime value)
