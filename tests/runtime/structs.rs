@@ -1,8 +1,5 @@
 use anyhow::Result;
-use seagrass::core::{
-    execute_source,
-    runtime::{RuntimeConfigOption, RuntimeValue},
-};
+use seagrass::core::{execute_source, runtime::RuntimeValue};
 
 #[test]
 pub fn define_struct() -> Result<()> {
@@ -33,7 +30,7 @@ pub fn initialize_struct() -> Result<()> {
         };
     ";
 
-    let runtime = execute_source(source, &[RuntimeConfigOption::PreserveExpiredFrames(true)])?;
+    let runtime = execute_source(source, &vec![])?;
 
     let one = runtime.get_global_variable("initialization")?;
 
@@ -65,11 +62,29 @@ pub fn access_struct() -> Result<()> {
         let my_value = my_inst.field_1;
     ";
 
-    let runtime = execute_source(source, &[RuntimeConfigOption::PreserveExpiredFrames(true)])?;
+    let runtime = execute_source(source, &vec![])?;
 
     let value = runtime.get_global_variable("my_value")?;
 
     assert_eq!(value.borrow().value(), RuntimeValue::U32(2));
+
+    Ok(())
+}
+
+#[test]
+pub fn default_initialization() -> Result<()> {
+    let source = "
+        struct MyStruct {
+            value: u32
+        }
+
+        let s = MyStruct { .. };
+        let out = s.value;
+    ";
+
+    let out = execute_source(source, &vec![])?.get_global_variable("out")?;
+
+    assert_eq!(out.borrow().value(), RuntimeValue::U32(0));
 
     Ok(())
 }
