@@ -27,7 +27,7 @@ impl RuntimeVariable {
 }
 
 impl DataType {
-    pub fn can_be_coereced_into(&self, into: &Self) -> bool {
+    pub fn can_be_coerced_into(&self, into: &Self) -> bool {
         match (self, into) {
             (Self::S32, Self::U32) => true,
             (Self::U32, Self::S32) => true,
@@ -40,7 +40,7 @@ impl DataType {
                     data_type: into_type,
                     count: into_count,
                 },
-            ) if self_type.can_be_coereced_into(into_type) => into_count >= self_count,
+            ) if self_type.can_be_coerced_into(into_type) => into_count >= self_count,
             _ => *self == *into,
         }
     }
@@ -166,7 +166,7 @@ impl Runtime {
 
         if data_type == *into {
             Ok(value)
-        } else if data_type.can_be_coereced_into(into) {
+        } else if data_type.can_be_coerced_into(into) {
             match (value, into) {
                 (RuntimeValue::U32(val), DataType::S32) => Ok(RuntimeValue::S32(val as i32)),
                 (RuntimeValue::S32(val), DataType::U32) => Ok(RuntimeValue::U32(val as u32)),
@@ -186,7 +186,7 @@ impl Runtime {
                         contents,
                     })
                 }
-                _ => unreachable!("type must be coercable but it isn't for some reason"),
+                _ => unreachable!("type must be coerceable but it isn't for some reason"),
             }
         } else {
             Err(RuntimeError::TypeCoercionFail {

@@ -35,7 +35,7 @@ impl Runtime {
             }
 
             // implicit type coercion
-            (val, ty) if val.data_type()?.can_be_coereced_into(ty) => self.coerce(val, ty),
+            (val, ty) if val.data_type()?.can_be_coerced_into(ty) => self.coerce(val, ty),
 
             // todo: handle type annotations of struct initialization
             _ => Err(RuntimeError::AnnotationError {
