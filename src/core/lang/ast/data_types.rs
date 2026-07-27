@@ -52,6 +52,45 @@ pub fn build_value(pair: Pair<Rule>) -> Result<Value> {
 }
 
 pub fn build_data_type(pair: Pair<Rule>) -> Result<DataType> {
+    assert_eq!(pair.as_rule(), Rule::DataType);
+
+    let inner = pair.into_inner().next().unwrap();
+
+    match inner.as_rule() {
+        Rule::ArrayType => build_array_type(inner),
+        Rule::SingleDataType => build_single_type(inner),
+
+        _ => unreachable!("{:?}", inner.as_rule()),
+    }
+}
+
+fn build_array_type(pair: Pair<Rule>) -> Result<DataType> {
+    assert_eq!(pair.as_rule(), Rule::ArrayType);
+
+    let mut inner = pair.into_inner();
+
+    // DataType
+    let data_type = build_data_type(inner.next().unwrap())?;
+
+    // Integer
+    let s = inner.next().unwrap().as_str();
+    let count = if let Some(hex) = s.strip_prefix("0x") {
+        usize::from_str_radix(hex, 16)?
+    } else if let Some(hex) = s.strip_prefix("0X") {
+        usize::from_str_radix(hex, 16)?
+    } else {
+        s.parse()?
+    };
+
+    Ok(DataType::Array {
+        data_type: Box::new(data_type),
+        count,
+    })
+}
+
+fn build_single_type(pair: Pair<Rule>) -> Result<DataType> {
+    assert_eq!(pair.as_rule(), Rule::SingleDataType);
+
     match pair.as_str() {
         "u32" => Ok(DataType::U32),
         "s32" => Ok(DataType::S32),

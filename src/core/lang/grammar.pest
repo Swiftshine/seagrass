@@ -86,6 +86,7 @@ Dot             = _{ "." }
 Comma           = _{ "," }
 Equals          = _{ "=" }
 Colon           = _{ ":" }
+Semicolon       = _{ ";" }
 ScopeResolution = _{ "::" }
 LBrace          = _{ "{" }
 RBrace          = _{ "}" }
@@ -127,9 +128,18 @@ BuiltinDataType = {
 }
 
 DataType = {
+    ArrayType |
+    SingleDataType
+}
+
+SingleDataType = {
     ReferenceType |
     BuiltinDataType |
     Identifier
+}
+
+ArrayType = {
+    LBracket ~ DataType ~ Semicolon ~ Integer ~ RBracket
 }
 
 ReferenceType = {
@@ -295,9 +305,18 @@ FieldAccess = {
 
 Atom = {
     StructInitialization |
+    ArrayInitialization |
     FunctionCall |
     Value |
     (LParen ~ Expression ~ RParen)
+}
+
+ArrayInitialization = {
+    LBrace ~ ArrayInitializers? ~ (Comma? ~ DotDot)? ~ RBrace
+}
+
+ArrayInitializers = {
+    Expression ~ (Comma ~ Expression)*
 }
 
 StructInitialization = {

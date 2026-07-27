@@ -1,7 +1,9 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::core::{lang::ast::{DataType, StructDefinition}, runtime::{RuntimeError, RuntimeResult}};
-
+use crate::core::{
+    lang::ast::{DataType, StructDefinition},
+    runtime::{Runtime, RuntimeError, RuntimeResult},
+};
 
 pub type RuntimeReference = Rc<RefCell<RuntimeVariable>>;
 
@@ -24,6 +26,26 @@ impl RuntimeVariable {
     }
 }
 
+impl DataType {
+    pub fn can_be_coereced_into(&self, into: &Self) -> bool {
+        match (self, into) {
+            (Self::S32, Self::U32) => true,
+            (Self::U32, Self::S32) => true,
+            (
+                Self::Array {
+                    data_type: self_type,
+                    count: self_count,
+                },
+                Self::Array {
+                    data_type: into_type,
+                    count: into_count,
+                },
+            ) if self_type.can_be_coereced_into(into_type) => into_count >= self_count,
+            _ => *self == *into,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
     None,
@@ -36,6 +58,10 @@ pub enum RuntimeValue {
         fields: HashMap<String, RuntimeValue>,
     },
     Reference(RuntimeReference),
+    Array {
+        inner_data_type: DataType,
+        contents: Box<[RuntimeValue]>,
+    },
 }
 
 impl RuntimeValue {
@@ -49,6 +75,14 @@ impl RuntimeValue {
             Self::Struct { definition, .. } => {
                 Ok(DataType::UserDefined(definition.identifier.clone()))
             }
+            Self::Array {
+                inner_data_type: data_type,
+                contents,
+            } => Ok(DataType::Array {
+                data_type: Box::new(data_type.clone()),
+                count: contents.len(),
+            }),
+
             Self::Reference(variable) => Ok(DataType::Reference(Box::new(
                 variable.borrow().value().data_type()?,
             ))),
@@ -124,4 +158,41 @@ impl RuntimeValue {
     //         _ => Err(RuntimeError::ExpectedStruct),
     //     }
     // }
+}
+
+impl Runtime {
+    pub fn coerce(&self, value: RuntimeValue, into: &DataType) -> RuntimeResult<RuntimeValue> {
+        let data_type = value.data_type()?;
+
+        if data_type == *into {
+            Ok(value)
+        } else if data_type.can_be_coereced_into(into) {
+            match (value, into) {
+                (RuntimeValue::U32(val), DataType::S32) => Ok(RuntimeValue::S32(val as i32)),
+                (RuntimeValue::S32(val), DataType::U32) => Ok(RuntimeValue::U32(val as u32)),
+                (RuntimeValue::Array { contents, .. }, DataType::Array { data_type, count }) => {
+                    let mut vec = contents.to_vec();
+
+                    // make sure the existing type gets coerced into the new one
+                    for i in 0..vec.len() {
+                        vec[i] = self.coerce(vec[i].clone(), data_type)?
+                    }
+
+                    vec.resize(*count, self.default_value(data_type)?);
+                    let contents = vec.into_boxed_slice();
+
+                    Ok(RuntimeValue::Array {
+                        inner_data_type: *data_type.clone(),
+                        contents,
+                    })
+                }
+                _ => unreachable!("type must be coercable but it isn't for some reason"),
+            }
+        } else {
+            Err(RuntimeError::TypeCoercionFail {
+                from: value.data_type()?.to_string(),
+                to: into.to_string(),
+            })
+        }
+    }
 }

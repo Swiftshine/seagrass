@@ -69,6 +69,7 @@ pub enum Expression {
         operator: BinaryOperator,
     },
     StructInitialization(StructInitialization),
+    ArrayInitialization(ArrayInitialization),
     StructFieldAccess {
         expression: Box<Expression>,
         field_identifier: String,
@@ -107,6 +108,12 @@ pub struct StructInitialization {
 pub struct StructFieldInitialization {
     pub identifier: String,
     pub expression: Expression,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ArrayInitialization {
+    pub initialized_fields: Vec<Expression>,
+    pub use_defaults: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -163,6 +170,10 @@ pub enum DataType {
     Bool,
     Reference(Box<DataType>),
     UserDefined(String),
+    Array {
+        data_type: Box<DataType>,
+        count: usize,
+    },
 }
 
 impl DataType {
@@ -174,6 +185,7 @@ impl DataType {
             Self::Bool => "bool".to_string(),
             Self::Reference(data_type) => format!("&{}", data_type.to_string()),
             Self::UserDefined(user_defined_type) => user_defined_type.clone(),
+            Self::Array { data_type, count } => format!("[{}; {}]", data_type.to_string(), count),
         }
     }
 }
@@ -696,8 +708,50 @@ fn build_atom(pair: Pair<Rule>) -> Result<Expression> {
         Rule::StructInitialization => Ok(Expression::StructInitialization(
             build_struct_initialization(inner)?,
         )),
+        Rule::ArrayInitialization => Ok(Expression::ArrayInitialization(
+            build_array_initialization(inner)?,
+        )),
+
         _ => unreachable!("{:?}", inner.as_rule()),
     }
+}
+
+fn build_array_initialization(pair: Pair<Rule>) -> Result<ArrayInitialization> {
+    assert_eq!(pair.as_rule(), Rule::ArrayInitialization);
+
+    let mut inner = pair.into_inner();
+    let mut initialized_fields = Vec::new();
+    let mut use_defaults = false;
+
+    while let Some(pair) = inner.next() {
+        match pair.as_rule() {
+            Rule::ArrayInitializers => {
+                initialized_fields = build_array_initializers(pair)?;
+            }
+
+            Rule::DotDot => {
+                use_defaults = true;
+            }
+
+            _ => unreachable!("{:?}", pair.as_rule()),
+        }
+    }
+
+    Ok(ArrayInitialization {
+        initialized_fields,
+        use_defaults,
+    })
+}
+
+fn build_array_initializers(pair: Pair<Rule>) -> Result<Vec<Expression>> {
+    assert_eq!(pair.as_rule(), Rule::ArrayInitializers);
+
+    let expressions = pair
+        .into_inner()
+        .flat_map(|pair| build_expression(pair))
+        .collect();
+
+    Ok(expressions)
 }
 
 fn build_struct_initialization(pair: Pair<Rule>) -> Result<StructInitialization> {
@@ -720,6 +774,7 @@ fn build_struct_initialization(pair: Pair<Rule>) -> Result<StructInitialization>
 
             Rule::DotDot => {
                 use_defaults = true;
+                break;
             }
 
             _ => unreachable!(),

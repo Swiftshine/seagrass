@@ -22,10 +22,6 @@ impl Runtime {
         let value_data_type_string = value.data_type()?.to_string();
 
         match (value, expected) {
-            (RuntimeValue::S32(i), DataType::S32) => Ok(RuntimeValue::S32(i)),
-
-            (RuntimeValue::U32(i), DataType::U32) => Ok(RuntimeValue::U32(i)),
-
             (RuntimeValue::S32(i), DataType::U32) if i >= 0 => Ok(RuntimeValue::U32(i as u32)),
 
             (RuntimeValue::Bool(b), DataType::Bool) => Ok(RuntimeValue::Bool(b)),
@@ -37,6 +33,9 @@ impl Runtime {
             {
                 Ok(value)
             }
+
+            // implicit type coercion
+            (val, ty) if val.data_type()?.can_be_coereced_into(ty) => self.coerce(val, ty),
 
             // todo: handle type annotations of struct initialization
             _ => Err(RuntimeError::AnnotationError {
@@ -69,6 +68,8 @@ impl Runtime {
             }
 
             Expression::StructInitialization(init) => self.initialize_struct(init),
+
+            Expression::ArrayInitialization(init) => self.initialize_array(init),
 
             Expression::StructFieldAccess {
                 expression,

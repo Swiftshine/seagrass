@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::core::lang::ast::{StructFieldDefinition, StructMember};
+use crate::core::lang::ast::{ArrayInitialization, StructFieldDefinition, StructMember};
 
 use crate::core::{
     lang::ast::{
@@ -160,6 +160,11 @@ impl StructFieldDefinition {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ValidationException {
+    SerializeAsAscii,
+}
+
 impl Runtime {
     pub fn validate_pod(&self, struct_definition: &StructDefinition) -> RuntimeResult<()> {
         for field in struct_definition.fields() {
@@ -169,14 +174,18 @@ impl Runtime {
         Ok(())
     }
 
-    fn validate_pod_type(&self, field_definition: &StructFieldDefinition) -> RuntimeResult<()> {
-        // special exceptions
+    fn get_validation_exceptions(
+        &self,
+        field_definition: &StructFieldDefinition,
+    ) -> RuntimeResult<Vec<ValidationException>> {
+        let mut exceptions = Vec::new();
+
         if matches!(field_definition.data_type, DataType::String)
             && let Ok(attribute) = field_definition.get_attribute("serialize_as")
         {
             if let Expression::Value(Value::String(string)) = &attribute.arguments[0] {
                 match string.as_str() {
-                    "ascii" => return Ok(()),
+                    "ascii" => exceptions.push(ValidationException::SerializeAsAscii),
                     _ => {
                         return Err(RuntimeError::UnexpectedAttributeArgument {
                             attribute: attribute.identifier.clone(),
@@ -187,13 +196,34 @@ impl Runtime {
             }
         }
 
-        match &field_definition.data_type {
+        Ok(exceptions)
+    }
+
+    fn validate_pod_type(&self, field_definition: &StructFieldDefinition) -> RuntimeResult<()> {
+        // special exceptions
+        let exceptions = self.get_validation_exceptions(field_definition)?;
+        self.validate_pod_for_data_type(&field_definition.data_type, exceptions)
+    }
+
+    fn validate_pod_for_data_type(
+        &self,
+        data_type: &DataType,
+        exceptions: Vec<ValidationException>,
+    ) -> RuntimeResult<()> {
+        match data_type {
             DataType::U32 | DataType::S32 | DataType::Bool => Ok(()),
 
-            DataType::String | DataType::Reference(_) => Err(RuntimeError::NonPODType(
-                field_definition.data_type.to_string(),
-            )),
-
+            DataType::String => {
+                if exceptions.contains(&ValidationException::SerializeAsAscii) {
+                    Ok(())
+                } else {
+                    Err(RuntimeError::NonPODType(data_type.to_string()))
+                }
+            }
+            DataType::Reference(_) => Err(RuntimeError::NonPODType(data_type.to_string())),
+            DataType::Array { data_type, .. } => {
+                self.validate_pod_for_data_type(data_type, exceptions)
+            }
             DataType::UserDefined(identifier) => {
                 let struct_field_definition = self.get_struct_definition(&identifier)?;
 
@@ -345,7 +375,7 @@ impl Runtime {
         Ok(())
     }
 
-    fn default_value(&self, data_type: &DataType) -> RuntimeResult<RuntimeValue> {
+    pub fn default_value(&self, data_type: &DataType) -> RuntimeResult<RuntimeValue> {
         match data_type {
             DataType::U32 => Ok(RuntimeValue::U32(0)),
 
@@ -356,6 +386,15 @@ impl Runtime {
             DataType::String => Ok(RuntimeValue::String(String::new())),
 
             DataType::Reference(_) => Err(RuntimeError::CannotDefaultInitializeReference),
+
+            DataType::Array { data_type, count } => {
+                let contents = vec![self.default_value(data_type)?; *count].into_boxed_slice();
+
+                Ok(RuntimeValue::Array {
+                    inner_data_type: *data_type.clone(),
+                    contents,
+                })
+            }
 
             DataType::UserDefined(identifier) => {
                 let definition = self.get_struct_definition(identifier)?.clone();
@@ -372,6 +411,37 @@ impl Runtime {
                 Ok(RuntimeValue::Struct { definition, fields })
             }
         }
+    }
+
+    pub fn initialize_array(&mut self, init: &ArrayInitialization) -> RuntimeResult<RuntimeValue> {
+        // in the case that the type is annotated:
+        // if it turns out later on that there are more elements in the array than are initialized here,
+        // that's okay, because the rest can be default-initialized.
+        // if there are more, however, raise an error
+
+        if init.initialized_fields.is_empty() {
+            return Err(RuntimeError::CannotInferEmptyArrayType);
+        }
+
+        let contents: Box<[RuntimeValue]> = init
+            .initialized_fields
+            .iter()
+            .flat_map(|expr| self.evaluate_expression(expr))
+            .collect();
+
+        assert_eq!(contents.len(), init.initialized_fields.len());
+
+        let data_type = contents[0].data_type()?;
+
+        // todo! make it possible to apply type coercion from signed -> unsigned
+        for item in &contents {
+            assert_eq!(item.data_type()?, data_type);
+        }
+
+        Ok(RuntimeValue::Array {
+            inner_data_type: data_type,
+            contents,
+        })
     }
 
     pub fn initialize_struct(
@@ -483,6 +553,20 @@ impl Runtime {
                     .map_err(|_| RuntimeError::SerializationError("Invalid UTF-8".to_string()))?;
 
                 Ok(RuntimeValue::String(string))
+            }
+
+            DataType::Array { data_type, count } => {
+                let count = *count;
+
+                let contents: Box<[RuntimeValue]> = (0..count)
+                    .into_iter()
+                    .flat_map(|_| self.deserialize_value(data_type, bytes, offset, byte_order))
+                    .collect();
+
+                Ok(RuntimeValue::Array {
+                    inner_data_type: *data_type.clone(),
+                    contents,
+                })
             }
 
             DataType::Reference(_) => {

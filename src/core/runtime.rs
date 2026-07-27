@@ -12,7 +12,9 @@ pub use value::RuntimeValue;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::{
-    lang::ast::{AssignmentTarget, FunctionDefinition, Parameter, StructDefinition, StructImpl},
+    lang::ast::{
+        AssignmentTarget, DataType, FunctionDefinition, Parameter, StructDefinition, StructImpl,
+    },
     runtime::{
         functions::{FunctionFrame, RuntimeFunction},
         scopes::{RuntimeScope, RuntimeScopeType},
@@ -54,6 +56,8 @@ pub enum RuntimeError {
     ExpectedReference(String),
     #[error("Attribute '{0}' not found")]
     AttributeNotFound(&'static str),
+    #[error("Cannot infer array type from empty array")]
+    CannotInferEmptyArrayType,
 
     // Mismatches
     #[error("Unsupported binary operation for '[{lhs_type}] {operation} [{rhs_type}]'")]
@@ -78,10 +82,22 @@ pub enum RuntimeError {
     ExpectedStruct,
     #[error("Cannot dereference a type that is not a reference")]
     CannotDereferenceNonReference,
+    #[error("Cannot coerce a '{from}' into a '{to}'")]
+    TypeCoercionFail { from: String, to: String },
 
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]
     IncompleteStructInitialization(String),
+    #[error("Incomplete array initialization for '{0}'")]
+    IncompleteArrayInitialization(String),
+    #[error(
+        "Attempted to initialize array of type '{array_type}' with too many elements (expected {expected}, found {found}"
+    )]
+    TooManyArrayElementsForInitialization {
+        array_type: String,
+        expected: usize,
+        found: usize,
+    },
     #[error(
         "Invalid initialization type for field '{field_name}' of struct '{struct_name}' (expected '{expected}', found '{found}')"
     )]
@@ -177,6 +193,7 @@ pub struct Runtime {
     struct_impls: HashMap<String, Rc<StructImpl>>,
     config: RuntimeConfig,
     byte_order: ByteOrder,
+    attemped_initialized_array_type: Option<DataType>,
 }
 
 impl Default for Runtime {
@@ -197,6 +214,7 @@ impl Runtime {
             struct_impls: HashMap::new(),
             config: RuntimeConfig::default(),
             byte_order: ByteOrder::Little,
+            attemped_initialized_array_type: None,
         }
     }
 
@@ -345,5 +363,16 @@ impl Runtime {
 
     pub fn set_byte_order(&mut self, byte_order: ByteOrder) {
         self.byte_order = byte_order;
+    }
+
+    pub fn set_attemped_initialized_array_type(
+        &mut self,
+        attemped_initialized_array_type: Option<DataType>,
+    ) {
+        self.attemped_initialized_array_type = attemped_initialized_array_type;
+    }
+
+    pub fn attemped_initialized_array_type(&self) -> Option<&DataType> {
+        self.attemped_initialized_array_type.as_ref()
     }
 }
