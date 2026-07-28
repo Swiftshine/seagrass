@@ -280,12 +280,33 @@ impl Runtime {
         rhs: RuntimeValue,
     ) -> RuntimeResult<RuntimeValue> {
         match operator {
+            // arithmetic
             BinaryOperator::Add => lhs.add(rhs),
             BinaryOperator::Subtract => lhs.subtract(rhs),
             BinaryOperator::Multiply => lhs.multiply(rhs),
             BinaryOperator::Divide => lhs.divide(rhs),
+            BinaryOperator::Modulo => lhs.modulo(rhs),
+
+            // shifts
+            BinaryOperator::ShiftLeft => lhs.shift_left(rhs),
+            BinaryOperator::ShiftRight => lhs.shift_right(rhs),
+
+            // comparisons
+            BinaryOperator::LessThan => lhs.compare_lt(rhs),
+            BinaryOperator::LessThanOrEqualTo => lhs.compare_lte(rhs),
+            BinaryOperator::GreaterThan => lhs.compare_gt(rhs),
+            BinaryOperator::GreaterThanOrEqualTo => lhs.compare_gte(rhs),
             BinaryOperator::EqualTo => lhs.compare_eq(rhs),
             BinaryOperator::NotEqualTo => lhs.compare_neq(rhs),
+
+            // bitwise
+            BinaryOperator::BitwiseAnd => lhs.bitwise_and(rhs),
+            BinaryOperator::BitwiseOr => lhs.bitwise_or(rhs),
+            BinaryOperator::BitwiseXor => lhs.bitwise_xor(rhs),
+
+            // logical
+            BinaryOperator::LogicalAnd => lhs.logical_and(rhs),
+            BinaryOperator::LogicalOr => lhs.logical_or(rhs),
         }
     }
 

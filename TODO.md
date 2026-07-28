@@ -1,5 +1,3 @@
-other operators (and, or, xor...)
-
 control flow (if/else statements, loops...)
 
 - [x] If statements
@@ -8,8 +6,6 @@ control flow (if/else statements, loops...)
 - [ ] For loops
 
 (explicit) type casting
-
-bitwise operations
 
 include statements
 

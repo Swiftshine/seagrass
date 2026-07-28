@@ -104,6 +104,14 @@ NotEqualTo      = { "!=" }
 GreaterThanOrEqualTo = { ">=" }
 LessThanOrEqualTo = { "<=" }
 DotDot = { ".." }
+Percent     = { "%" }
+Pipe        = { "|" }
+Caret       = { "^" }
+Amp         = { "&" }   // bitwise AND
+OrOr        = { "||" }
+AndAnd      = { "&&" }
+ShiftLeft   = { "<<" }
+ShiftRight  = { ">>" }
 
 ComparisonOp = _{
     GreaterThanOrEqualTo |
@@ -261,19 +269,64 @@ Return = {
 }
 
 Expression = {
-    Comparison
+    LogicalOr
+}
+
+LogicalOr = {
+    LogicalAnd ~ (LogicalOrOp ~ LogicalAnd)*
+}
+
+LogicalOrOp = _{
+    OrOr
+}
+
+LogicalAnd = {
+    BitwiseOr ~ (LogicalAndOp ~ BitwiseOr)*
+}
+
+LogicalAndOp = _{
+    AndAnd
+}
+
+BitwiseOr = {
+    BitwiseXor ~ (BitwiseOrOp ~ BitwiseXor)*
+}
+
+BitwiseOrOp = _{
+    Pipe
+}
+
+BitwiseXor = {
+    BitwiseAnd ~ (BitwiseXorOp ~ BitwiseAnd)*
+}
+
+BitwiseXorOp = _{
+    Caret
+}
+
+BitwiseAnd = {
+    Comparison ~ (BitwiseAndOp ~ Comparison)*
+}
+
+BitwiseAndOp = _{
+    Amp
 }
 
 Comparison = {
-    Addition ~ (ComparisonOp ~ Addition)*
+    Shift ~ (ComparisonOp ~ Shift)*
+}
+
+Shift = {
+    Addition ~ (ShiftOp ~ Addition)*
+}
+
+ShiftOp = _{
+    ShiftLeft |
+    ShiftRight
 }
 
 Addition = {
     Multiplication ~ (AddOp ~ Multiplication)*
-}
-
-AddOp = _{
-    Plus | Minus
 }
 
 Multiplication = {
@@ -281,7 +334,11 @@ Multiplication = {
 }
 
 MulOp = _{
-    Multiply | Slash
+    Multiply | Slash | Percent
+}
+
+AddOp = _{
+    Plus | Minus
 }
 
 Unary = {

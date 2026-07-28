@@ -94,11 +94,28 @@ pub enum BinaryOperator {
     Subtract,
     Multiply,
     Divide,
+    Modulo,
+
+    // shifts
+    ShiftLeft,
+    ShiftRight,
 
     // comparison
+    LessThan,
+    LessThanOrEqualTo,
+    GreaterThan,
+    GreaterThanOrEqualTo,
     EqualTo,
     NotEqualTo,
-    // todo: bitwise
+
+    // bitwise
+    BitwiseAnd,
+    BitwiseXor,
+    BitwiseOr,
+
+    // logical
+    LogicalAnd,
+    LogicalOr,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -599,93 +616,126 @@ fn build_dereference(pair: Pair<Rule>) -> Result<Expression> {
     Ok(Expression::Dereference(Box::new(expression)))
 }
 
+fn build_binary_expression<BuildOperand, BuildOperator>(
+    pair: Pair<Rule>,
+    build_operand: BuildOperand,
+    build_operator: BuildOperator,
+) -> Result<Expression>
+where
+    BuildOperand: Fn(Pair<Rule>) -> Result<Expression>,
+    BuildOperator: Fn(Rule) -> BinaryOperator,
+{
+    let mut inner = pair.into_inner();
+    let mut expr = build_operand(inner.next().unwrap())?;
+
+    while let Some(op) = inner.next() {
+        let rhs = build_operand(
+            inner
+                .next()
+                .expect("binary operator must have a right-hand operand"),
+        )?;
+
+        expr = Expression::Binary {
+            lhs: Box::new(expr),
+            operator: build_operator(op.as_rule()),
+            rhs: Box::new(rhs),
+        };
+    }
+
+    Ok(expr)
+}
 fn build_expression(pair: Pair<Rule>) -> Result<Expression> {
-    build_comparison(pair.into_inner().next().unwrap())
+    build_logical_or(pair.into_inner().next().unwrap())
+}
+
+fn build_logical_or(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::LogicalOr);
+
+    build_binary_expression(pair, build_logical_and, |rule| match rule {
+        Rule::OrOr => BinaryOperator::LogicalOr,
+        _ => unreachable!("{:?}", rule),
+    })
+}
+
+fn build_logical_and(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::LogicalAnd);
+
+    build_binary_expression(pair, build_bitwise_or, |rule| match rule {
+        Rule::AndAnd => BinaryOperator::LogicalAnd,
+        _ => unreachable!("{:?}", rule),
+    })
+}
+
+fn build_bitwise_or(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::BitwiseOr);
+
+    build_binary_expression(pair, build_bitwise_xor, |rule| match rule {
+        Rule::Pipe => BinaryOperator::BitwiseOr,
+        _ => unreachable!("{:?}", rule),
+    })
+}
+
+fn build_bitwise_xor(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::BitwiseXor);
+
+    build_binary_expression(pair, build_bitwise_and, |rule| match rule {
+        Rule::Caret => BinaryOperator::BitwiseXor,
+        _ => unreachable!("{:?}", rule),
+    })
+}
+
+fn build_bitwise_and(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::BitwiseAnd);
+
+    build_binary_expression(pair, build_comparison, |rule| match rule {
+        Rule::Amp => BinaryOperator::BitwiseAnd,
+        _ => unreachable!("{:?}", rule),
+    })
 }
 
 fn build_comparison(pair: Pair<Rule>) -> Result<Expression> {
-    let mut inner = pair.into_inner();
+    assert_eq!(pair.as_rule(), Rule::Comparison);
 
-    let mut expr = build_addition(inner.next().unwrap())?;
+    build_binary_expression(pair, build_shift, |rule| match rule {
+        Rule::EqualTo => BinaryOperator::EqualTo,
+        Rule::NotEqualTo => BinaryOperator::NotEqualTo,
+        Rule::LessThan => BinaryOperator::LessThan,
+        Rule::LessThanOrEqualTo => BinaryOperator::LessThanOrEqualTo,
+        Rule::GreaterThan => BinaryOperator::GreaterThan,
+        Rule::GreaterThanOrEqualTo => BinaryOperator::GreaterThanOrEqualTo,
+        _ => unreachable!("{:?}", rule),
+    })
+}
 
-    while let Some(op) = inner.next() {
-        let rhs = build_addition(
-            inner
-                .next()
-                .expect("operator must have a right-hand operand"),
-        )?;
+fn build_shift(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::Shift);
 
-        let operator = match op.as_rule() {
-            Rule::EqualTo => BinaryOperator::EqualTo,
-            Rule::NotEqualTo => BinaryOperator::NotEqualTo,
-
-            _ => unreachable!("{:?}", op.as_rule()),
-        };
-
-        expr = Expression::Binary {
-            lhs: Box::new(expr),
-            operator,
-            rhs: Box::new(rhs),
-        };
-    }
-
-    Ok(expr)
+    build_binary_expression(pair, build_addition, |rule| match rule {
+        Rule::ShiftLeft => BinaryOperator::ShiftLeft,
+        Rule::ShiftRight => BinaryOperator::ShiftRight,
+        _ => unreachable!("{:?}", rule),
+    })
 }
 
 fn build_addition(pair: Pair<Rule>) -> Result<Expression> {
-    let mut inner = pair.into_inner();
+    assert_eq!(pair.as_rule(), Rule::Addition);
 
-    let mut expr = build_multiplication(inner.next().unwrap())?;
-
-    while let Some(op) = inner.next() {
-        let rhs = build_multiplication(
-            inner
-                .next()
-                .expect("operator must have a right-hand operand"),
-        )?;
-
-        let operator = match op.as_rule() {
-            Rule::Plus => BinaryOperator::Add,
-            Rule::Minus => BinaryOperator::Subtract,
-            _ => unreachable!("{:?}", op.as_rule()),
-        };
-
-        expr = Expression::Binary {
-            lhs: Box::new(expr),
-            operator,
-            rhs: Box::new(rhs),
-        };
-    }
-
-    Ok(expr)
+    build_binary_expression(pair, build_multiplication, |rule| match rule {
+        Rule::Plus => BinaryOperator::Add,
+        Rule::Minus => BinaryOperator::Subtract,
+        _ => unreachable!("{:?}", rule),
+    })
 }
 
 fn build_multiplication(pair: Pair<Rule>) -> Result<Expression> {
     assert_eq!(pair.as_rule(), Rule::Multiplication);
 
-    let mut inner = pair.into_inner();
-
-    let mut expr = build_unary(inner.next().unwrap())?;
-
-    while let Some(op) = inner.next() {
-        let rhs = inner
-            .next()
-            .expect("multiplication operator must have a right-hand operand");
-
-        let operator = match op.as_rule() {
-            Rule::Multiply => BinaryOperator::Multiply,
-            Rule::Slash => BinaryOperator::Divide,
-            _ => unreachable!("{:?}", op.as_rule()),
-        };
-
-        expr = Expression::Binary {
-            lhs: Box::new(expr),
-            operator,
-            rhs: Box::new(build_unary(rhs)?),
-        };
-    }
-
-    Ok(expr)
+    build_binary_expression(pair, build_unary, |rule| match rule {
+        Rule::Multiply => BinaryOperator::Multiply,
+        Rule::Slash => BinaryOperator::Divide,
+        Rule::Percent => BinaryOperator::Modulo,
+        _ => unreachable!("{:?}", rule),
+    })
 }
 
 fn build_unary(pair: Pair<Rule>) -> Result<Expression> {
