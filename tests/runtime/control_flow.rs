@@ -75,3 +75,37 @@ pub fn loop_statements() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+pub fn ranged_for_statements() -> Result<()> {
+    let source = "
+        let val = 0;
+
+        for i in 0..10 {
+            val = val + i;
+        }
+    ";
+
+    let val = execute_source(source, &vec![])?.get_global_variable("val")?;
+
+    assert_eq!(val.borrow().value(), RuntimeValue::S32(45));
+    Ok(())
+}
+
+#[test]
+pub fn iterator_for_statements() -> Result<()> {
+    let source = "
+        let val = 0;
+        let arr = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+        for item in arr {
+            val = val + item;
+        }
+    ";
+
+    let val = execute_source(source, &vec![])?.get_global_variable("val")?;
+
+    assert_eq!(val.borrow().value(), RuntimeValue::S32(45));
+
+    Ok(())
+}
