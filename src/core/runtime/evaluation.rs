@@ -258,6 +258,8 @@ impl Runtime {
 
                 self.invoke_method(&struct_identifier, method_identifier, value, args)
             }
+
+            _ => unreachable!("{:?}", expression),
         }
     }
 

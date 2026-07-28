@@ -3,7 +3,7 @@ use crate::core::{
         Assignment, AssignmentTarget, Block, ControlStatement, Expression, Program, Return,
         Statement,
     },
-    runtime::{ControlFlow, Runtime, RuntimeResult, StatementResult},
+    runtime::{ControlFlow, Runtime, RuntimeError, RuntimeResult, RuntimeValue, StatementResult},
 };
 
 impl Runtime {
@@ -83,7 +83,82 @@ impl Runtime {
 
             ControlStatement::Loop { block } => self.execute_loop(block),
 
+            ControlStatement::For {
+                identifier,
+                iterable,
+                block,
+            } => self.execute_for(identifier, iterable, block),
+
             _ => unreachable!("{:?}", control_statement),
+        }
+    }
+
+    fn execute_for(
+        &mut self,
+        identifier: &String,
+        iterable: &Expression,
+        block: &Block,
+    ) -> StatementResult {
+        match iterable {
+            Expression::Range { start, end } => {
+                let start = self.evaluate_expression(start)?;
+                let end = self.evaluate_expression(end)?;
+
+                let start = match start {
+                    RuntimeValue::U32(v) => v,
+                    RuntimeValue::S32(v) if v >= 0 => v as u32,
+                    other => {
+                        return Err(RuntimeError::ExpectedInteger(
+                            other.data_type()?.to_string(),
+                        ));
+                    }
+                };
+
+                let end = match end {
+                    RuntimeValue::U32(v) => v,
+                    RuntimeValue::S32(v) if v >= 0 => v as u32,
+                    other => {
+                        return Err(RuntimeError::ExpectedInteger(
+                            other.data_type()?.to_string(),
+                        ));
+                    }
+                };
+
+                for i in start..end {
+                    self.push_scope();
+
+                    self.assign_variable(identifier.clone(), RuntimeValue::U32(i));
+
+                    let result = (|| {
+                        for statement in &block.statements {
+                            let flow = self.execute_statement(statement)?;
+
+                            match flow {
+                                ControlFlow::Continue => {}
+                                ControlFlow::Break | ControlFlow::Return(_) => {
+                                    return Ok(flow);
+                                }
+                            }
+                        }
+
+                        Ok(ControlFlow::Continue)
+                    })();
+
+                    self.pop_scope();
+
+                    match result? {
+                        ControlFlow::Continue => {}
+                        ControlFlow::Break => break,
+                        ControlFlow::Return(value) => {
+                            return Ok(ControlFlow::Return(value));
+                        }
+                    }
+                }
+
+                Ok(ControlFlow::Continue)
+            }
+
+            _ => todo!("for non-range iterables (e.g. arrays)"),
         }
     }
 
@@ -176,22 +251,21 @@ impl Runtime {
 
     fn execute_block(&mut self, block: &Block) -> StatementResult {
         self.push_scope();
-
-        let result = (|| {
-            for statement in &block.statements {
-                let flow = self.execute_statement(statement)?;
-
-                match flow {
-                    ControlFlow::Continue => {}
-                    ControlFlow::Return(_) | ControlFlow::Break => return Ok(flow),
-                }
-            }
-
-            Ok(ControlFlow::Continue)
-        })();
-
+        let result = self.execute_block_contents(block);
         self.pop_scope();
-
         result
+    }
+
+    fn execute_block_contents(&mut self, block: &Block) -> StatementResult {
+        for statement in &block.statements {
+            let flow = self.execute_statement(statement)?;
+
+            match flow {
+                ControlFlow::Continue => {}
+                ControlFlow::Return(_) | ControlFlow::Break => return Ok(flow),
+            }
+        }
+
+        Ok(ControlFlow::Continue)
     }
 }

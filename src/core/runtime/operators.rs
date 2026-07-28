@@ -14,6 +14,8 @@ impl RuntimeValue {
 
             (RuntimeValue::U32(a), RuntimeValue::S32(b)) => Ok(RuntimeValue::U32(a + b as u32)),
 
+            (RuntimeValue::S32(a), RuntimeValue::U32(b)) => Ok(RuntimeValue::U32(a as u32 + b)),
+
             // string concat
             (RuntimeValue::String(a), RuntimeValue::String(b)) => Ok(RuntimeValue::String(a + &b)),
 

@@ -43,6 +43,8 @@ KeywordLoop = @{ "loop" ~ KeywordBoundary }
 KeywordBreak = @{ "break" ~ KeywordBoundary }
 KeywordSelf = @{ "self" ~ KeywordBoundary }
 KeywordPad = @{ "pad" ~ KeywordBoundary }
+KeywordFor = @{ "for" ~ KeywordBoundary }
+KeywordIn = @{ "in" ~ KeywordBoundary }
 
 // Execution
 Block = {
@@ -197,6 +199,7 @@ Value = {
 }
 
 Statement = {
+    ForStatement |
     LoopStatement |
     IfStatement |
     WhileStatement |
@@ -231,6 +234,10 @@ ElseStatement = {
 
 WhileStatement = {
     KeywordWhile ~ Comparison ~ Block
+}
+
+ForStatement = {
+    KeywordFor ~ Identifier ~ KeywordIn ~ Expression ~ Block
 }
 
 DeclarativeAssignment = {
@@ -269,7 +276,11 @@ Return = {
 }
 
 Expression = {
-    LogicalOr
+    Range
+}
+
+Range = {
+    LogicalOr ~ (DotDot ~ LogicalOr)?
 }
 
 LogicalOr = {

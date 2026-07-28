@@ -85,6 +85,15 @@ impl Runtime {
             return Ok(variable);
         }
 
+        if let Some(variable) = self
+            .global_sub_scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.variables().get(identifier).cloned())
+        {
+            return Ok(variable);
+        }
+
         self.get_global_variable(identifier)
     }
 

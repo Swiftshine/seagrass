@@ -85,6 +85,10 @@ pub enum Expression {
         method_identifier: String,
         arguments: Vec<Expression>,
     },
+    Range {
+        start: Box<Expression>,
+        end: Box<Expression>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -261,6 +265,11 @@ pub enum ControlStatement {
     Loop {
         block: Block,
     },
+    For {
+        identifier: String,
+        iterable: Expression,
+        block: Block,
+    },
 }
 
 impl ControlStatement {
@@ -286,6 +295,14 @@ impl ControlStatement {
 
     fn build_loop(block: Block) -> Self {
         Self::Loop { block }
+    }
+
+    fn build_for(identifier: String, iterable: Expression, block: Block) -> Self {
+        Self::For {
+            identifier,
+            iterable,
+            block,
+        }
     }
 }
 
@@ -336,6 +353,7 @@ fn build_statement(pair: Pair<Rule>) -> Result<Statement> {
         Rule::IfStatement => Ok(Statement::ControlStatement(build_if_statement(inner)?)),
         Rule::WhileStatement => Ok(Statement::ControlStatement(build_while_statement(inner)?)),
         Rule::LoopStatement => Ok(Statement::ControlStatement(build_loop_statement(inner)?)),
+        Rule::ForStatement => Ok(Statement::ControlStatement(build_for_statement(inner)?)),
         Rule::BreakStatement => Ok(Statement::Break),
         Rule::StructImplBlock => Ok(Statement::StructImpl(build_struct_impl(inner)?)),
         _ => unreachable!("{:?}", inner.as_rule()),
@@ -409,6 +427,29 @@ fn build_while_statement(pair: Pair<Rule>) -> Result<ControlStatement> {
     let block = build_block(inner.next().unwrap())?;
 
     Ok(ControlStatement::build_while(expression, block))
+}
+
+fn build_for_statement(pair: Pair<Rule>) -> Result<ControlStatement> {
+    assert_eq!(pair.as_rule(), Rule::ForStatement);
+
+    let mut inner = pair.into_inner();
+
+    // KeywordFor
+    inner.next();
+
+    // Identifier
+    let identifier = inner.next().unwrap().as_str().to_string();
+
+    // KeywordIn
+    inner.next();
+
+    // Expression
+    let iterable = build_expression(inner.next().unwrap())?;
+
+    // Block
+    let block = build_block(inner.next().unwrap())?;
+
+    Ok(ControlStatement::build_for(identifier, iterable, block))
 }
 
 fn build_if_statement(pair: Pair<Rule>) -> Result<ControlStatement> {
@@ -644,8 +685,28 @@ where
 
     Ok(expr)
 }
+
 fn build_expression(pair: Pair<Rule>) -> Result<Expression> {
-    build_logical_or(pair.into_inner().next().unwrap())
+    build_range(pair.into_inner().next().unwrap())
+}
+
+fn build_range(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::Range);
+
+    let mut inner = pair.into_inner();
+
+    let start = build_logical_or(inner.next().unwrap())?;
+
+    if inner.next().is_some() {
+        let end = build_logical_or(inner.next().unwrap())?;
+
+        Ok(Expression::Range {
+            start: Box::new(start),
+            end: Box::new(end),
+        })
+    } else {
+        Ok(start)
+    }
 }
 
 fn build_logical_or(pair: Pair<Rule>) -> Result<Expression> {

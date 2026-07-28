@@ -60,6 +60,8 @@ pub enum RuntimeError {
     CannotInferEmptyArrayType,
     #[error("Array index {0} invalid")]
     InvalidArrayIndex(String),
+    #[error("Expected integral type for ranges, found '{0}'")]
+    ExpectedInteger(String),
 
     // Mismatches
     #[error("Unsupported binary operation for '[{lhs_type}] {operation} [{rhs_type}]'")]
@@ -174,13 +176,11 @@ pub enum RuntimeConfigOption {
     PreserveExpiredFrames(bool),
 }
 
-#[derive(Debug)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct RuntimeConfig {
     /// (Development) Allows expired function frames and scopes to be preserved to inspect its end-of-life state.
     preserve_expired_frames: bool,
 }
-
 
 #[derive(Debug)]
 pub struct Runtime {
