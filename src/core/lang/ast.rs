@@ -131,7 +131,15 @@ pub struct Assignment {
 #[derive(Debug, PartialEq, Clone)]
 pub enum AssignmentTarget {
     Identifier(String),
-    Dereference(Expression),
+    Dereference(Box<AssignmentTarget>),
+    FieldAccess {
+        target: Box<AssignmentTarget>,
+        field_identifier: String,
+    },
+    ArrayAccess {
+        target: Box<AssignmentTarget>,
+        index_expression: Expression,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -521,25 +529,65 @@ fn build_reassignment(pair: Pair<Rule>) -> Result<Assignment> {
 fn build_assignment_target(pair: Pair<Rule>) -> Result<AssignmentTarget> {
     assert_eq!(pair.as_rule(), Rule::AssignmentTarget);
 
-    let first = pair.into_inner().next().unwrap();
+    let inner = pair.into_inner().next().unwrap();
 
-    match first.as_rule() {
-        Rule::Identifier => Ok(AssignmentTarget::Identifier(first.as_str().to_string())),
+    match inner.as_rule() {
+        Rule::AssignmentDereference => {
+            let target = inner.into_inner().next().unwrap();
 
-        Rule::Dereference => Ok(AssignmentTarget::Dereference(build_dereference_target(
-            first,
-        )?)),
+            Ok(AssignmentTarget::Dereference(Box::new(
+                build_assignment_target(target)?,
+            )))
+        }
 
-        _ => unreachable!("{:?}", first.as_rule()),
+        Rule::AssignmentPostfix => build_assignment_postfix(inner),
+
+        _ => unreachable!("{:?}", inner.as_rule()),
     }
 }
 
-fn build_dereference_target(pair: Pair<Rule>) -> Result<Expression> {
-    assert_eq!(pair.as_rule(), Rule::Dereference);
+fn build_assignment_postfix(pair: Pair<Rule>) -> Result<AssignmentTarget> {
+    assert_eq!(pair.as_rule(), Rule::AssignmentPostfix);
 
-    let unary = pair.into_inner().next().unwrap();
-    build_unary(unary)
+    let mut inner = pair.into_inner();
+
+    let identifier = inner.next().unwrap();
+
+    let mut target = AssignmentTarget::Identifier(identifier.as_str().to_string());
+
+    for pair in inner {
+        match pair.as_rule() {
+            Rule::FieldAccess => {
+                let field = pair.into_inner().next().unwrap();
+
+                target = AssignmentTarget::FieldAccess {
+                    target: Box::new(target),
+                    field_identifier: field.as_str().to_string(),
+                };
+            }
+
+            Rule::ArrayAccess => {
+                let index_expression = build_expression(pair.into_inner().next().unwrap())?;
+
+                target = AssignmentTarget::ArrayAccess {
+                    target: Box::new(target),
+                    index_expression,
+                };
+            }
+
+            _ => unreachable!("{:?}", pair.as_rule()),
+        }
+    }
+
+    Ok(target)
 }
+
+// fn build_dereference_target(pair: Pair<Rule>) -> Result<Expression> {
+//     assert_eq!(pair.as_rule(), Rule::Dereference);
+
+//     let unary = pair.into_inner().next().unwrap();
+//     build_unary(unary)
+// }
 
 fn build_dereference(pair: Pair<Rule>) -> Result<Expression> {
     assert_eq!(pair.as_rule(), Rule::Dereference);

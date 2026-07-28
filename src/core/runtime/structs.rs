@@ -433,7 +433,6 @@ impl Runtime {
 
         let data_type = contents[0].data_type()?;
 
-        // todo! make it possible to apply type coercion from signed -> unsigned
         for item in &contents {
             assert_eq!(item.data_type()?, data_type);
         }

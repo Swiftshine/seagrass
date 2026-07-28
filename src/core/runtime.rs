@@ -271,30 +271,15 @@ impl Runtime {
     fn assign_to_target(
         &mut self,
         target: &AssignmentTarget,
-        value: RuntimeValue,
+        mut value: RuntimeValue,
     ) -> RuntimeResult<()> {
-        match target {
-            AssignmentTarget::Identifier(name) => {
-                let variable = self.get_variable(name)?;
-                variable.borrow_mut().set_value(value);
-            }
+        let lvalue = self.evaluate_lvalue(target)?;
 
-            AssignmentTarget::Dereference(expression) => {
-                let reference = self.evaluate_expression(expression)?;
+        let existing_type = lvalue.read()?.data_type()?;
 
-                match reference {
-                    RuntimeValue::Reference(reference) => {
-                        *reference.borrow_mut() = RuntimeVariable::from_value(value);
-                    }
+        value = self.coerce(value, &existing_type)?;
 
-                    other => {
-                        return Err(RuntimeError::ExpectedReference(
-                            other.data_type()?.to_string(),
-                        ));
-                    }
-                }
-            }
-        }
+        lvalue.write(value)?;
 
         Ok(())
     }

@@ -1,6 +1,6 @@
 use crate::core::{
-    lang::ast::{BinaryOperator, DataType, Expression, Value},
-    runtime::{Runtime, RuntimeError, RuntimeResult, RuntimeValue},
+    lang::ast::{AssignmentTarget, BinaryOperator, DataType, Expression, Value},
+    runtime::{Runtime, RuntimeError, RuntimeResult, RuntimeValue, value::LValue},
 };
 
 impl Runtime {
@@ -37,11 +37,102 @@ impl Runtime {
             // implicit type coercion
             (val, ty) if val.data_type()?.can_be_coerced_into(ty) => self.coerce(val, ty),
 
-            // todo: handle type annotations of struct initialization
             _ => Err(RuntimeError::AnnotationError {
                 expected: expected.to_string(),
                 found: value_data_type_string,
             }),
+        }
+    }
+
+    pub fn evaluate_lvalue(&mut self, target: &AssignmentTarget) -> RuntimeResult<LValue> {
+        match target {
+            AssignmentTarget::Identifier(identifier) => {
+                Ok(LValue::Variable(self.get_variable(identifier)?))
+            }
+
+            AssignmentTarget::Dereference(target) => {
+                let value = self.evaluate_lvalue(target)?.read()?;
+
+                match value {
+                    RuntimeValue::Reference(reference) => Ok(LValue::Variable(reference)),
+
+                    other => Err(RuntimeError::ExpectedReference(
+                        other.data_type()?.to_string(),
+                    )),
+                }
+            }
+
+            AssignmentTarget::ArrayAccess {
+                target,
+                index_expression,
+            } => {
+                let array = Box::new(self.evaluate_lvalue(target)?);
+
+                let index = match self.evaluate_expression(index_expression)? {
+                    RuntimeValue::U32(value) => value as usize,
+
+                    RuntimeValue::S32(value) if value >= 0 => value as usize,
+
+                    other => {
+                        return Err(RuntimeError::InvalidArrayIndex(
+                            other.data_type()?.to_string(),
+                        ));
+                    }
+                };
+
+                let value = array.read()?;
+
+                match value {
+                    RuntimeValue::Array { contents, .. } => {
+                        if index >= contents.len() {
+                            return Err(RuntimeError::ArrayIndexOutOfBounds {
+                                index,
+                                length: contents.len(),
+                            });
+                        }
+                    }
+
+                    other => {
+                        return Err(RuntimeError::CannotIndexNonArrayType(
+                            other.data_type()?.to_string(),
+                        ));
+                    }
+                }
+
+                Ok(LValue::ArrayElement { array, index })
+            }
+
+            AssignmentTarget::FieldAccess {
+                target,
+                field_identifier,
+            } => {
+                let object = Box::new(self.evaluate_lvalue(target)?);
+
+                let value = object.read()?;
+
+                match value {
+                    RuntimeValue::Struct { definition, fields } => {
+                        if !fields.contains_key(field_identifier) {
+                            return Err(RuntimeError::InvalidStructFieldAccess {
+                                field_name: field_identifier.clone(),
+                                struct_name: definition.identifier.clone(),
+                            });
+                        }
+                    }
+
+                    other => {
+                        return Err(RuntimeError::InvalidStructFieldAccessTarget {
+                            field: field_identifier.clone(),
+                            data_type: other.data_type()?.to_string(),
+                        });
+                    }
+                }
+
+                Ok(LValue::StructField {
+                    object,
+                    field: field_identifier.clone(),
+                })
+            }
         }
     }
 

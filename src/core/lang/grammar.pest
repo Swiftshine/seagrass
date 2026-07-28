@@ -234,8 +234,21 @@ Reassignment = {
 }
 
 AssignmentTarget = {
-    Dereference |
-    Identifier
+    AssignmentDereference |
+    AssignmentPostfix
+}
+
+AssignmentDereference = {
+    Star ~ AssignmentTarget
+}
+
+AssignmentPostfix = {
+    Identifier ~ AssignmentPostfixOperation*
+}
+
+AssignmentPostfixOperation = _{
+    FieldAccess |
+    ArrayAccess
 }
 
 Assignment = {

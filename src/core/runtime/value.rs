@@ -7,22 +7,146 @@ use crate::core::{
 
 pub type RuntimeReference = Rc<RefCell<RuntimeVariable>>;
 
+impl RuntimeValue {
+    pub fn expect_reference(&self) -> RuntimeResult<RuntimeReference> {
+        match self {
+            RuntimeValue::Reference(reference) => Ok(reference.clone()),
+
+            other => Err(RuntimeError::ExpectedReference(
+                other.data_type()?.to_string(),
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum LValue {
+    Variable(RuntimeReference),
+    ArrayElement { array: Box<LValue>, index: usize },
+    StructField { object: Box<LValue>, field: String },
+}
+
+impl LValue {
+    pub fn read(&self) -> RuntimeResult<RuntimeValue> {
+        match self {
+            Self::Variable(reference) => Ok(reference.borrow().value()),
+
+            Self::ArrayElement { array, index } => {
+                let value = array.read()?;
+
+                match value {
+                    RuntimeValue::Array { contents, .. } => {
+                        contents
+                            .get(*index)
+                            .cloned()
+                            .ok_or(RuntimeError::ArrayIndexOutOfBounds {
+                                index: *index,
+                                length: contents.len(),
+                            })
+                    }
+
+                    other => Err(RuntimeError::CannotIndexNonArrayType(
+                        other.data_type()?.to_string(),
+                    )),
+                }
+            }
+
+            Self::StructField { object, field } => {
+                let value = object.read()?;
+
+                match value {
+                    RuntimeValue::Struct { definition, fields } => fields
+                        .get(field)
+                        .cloned()
+                        .ok_or(RuntimeError::InvalidStructFieldAccess {
+                            field_name: field.clone(),
+                            struct_name: definition.identifier.clone(),
+                        }),
+
+                    other => Err(RuntimeError::InvalidStructFieldAccessTarget {
+                        field: field.clone(),
+                        data_type: other.data_type()?.to_string(),
+                    }),
+                }
+            }
+        }
+    }
+
+    pub fn write(&self, value: RuntimeValue) -> RuntimeResult<()> {
+        match self {
+            Self::Variable(variable) => {
+                variable.borrow_mut().set_value(value)?;
+                Ok(())
+            }
+
+            Self::ArrayElement { array, index } => {
+                let mut array_value = array.read()?;
+
+                match &mut array_value {
+                    RuntimeValue::Array { contents, .. } => {
+                        contents[*index] = value;
+                        array.write(array_value)
+                    }
+
+                    other => Err(RuntimeError::CannotIndexNonArrayType(
+                        other.data_type()?.to_string(),
+                    )),
+                }
+            }
+
+            Self::StructField { object, field } => {
+                let mut object_value = object.read()?;
+
+                match &mut object_value {
+                    RuntimeValue::Struct { fields, .. } => {
+                        fields.insert(field.clone(), value);
+                        object.write(object_value)
+                    }
+
+                    other => Err(RuntimeError::InvalidStructFieldAccessTarget {
+                        field: field.clone(),
+                        data_type: other.data_type()?.to_string(),
+                    }),
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuntimeVariable {
     pub value: RuntimeValue,
+    pub data_type: DataType,
 }
 
 impl RuntimeVariable {
     pub fn from_value(value: RuntimeValue) -> Self {
-        Self { value }
+        let data_type = value.data_type().unwrap();
+
+        Self { value, data_type }
     }
 
     pub fn value(&self) -> RuntimeValue {
         self.value.clone()
     }
 
-    pub fn set_value(&mut self, value: RuntimeValue) {
+    pub fn set_value(&mut self, value: RuntimeValue) -> RuntimeResult<()> {
+        let value = match (&self.data_type, value) {
+            (DataType::U32, RuntimeValue::S32(i)) if i >= 0 => RuntimeValue::U32(i as u32),
+
+            (expected, value) if value.data_type()? == *expected => value,
+
+            (expected, value) => {
+                return Err(RuntimeError::AnnotationError {
+                    expected: expected.to_string(),
+                    found: value.data_type()?.to_string(),
+                });
+            }
+        };
+
         self.value = value;
+
+        Ok(())
     }
 }
 
