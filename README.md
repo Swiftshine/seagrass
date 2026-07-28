@@ -16,6 +16,10 @@ Q: Why make a scripting language for this?
 
 A: Because I utterly _despise_ using Python for binary data and because I don't want to have to make a compiled project for C++ or Rust every time I want to do something quickly.
 
+## Installation
+
+Not available yet! Seagrass is still being worked on.
+
 ## Language Implementation
 
 There are several specific things that make Seagrass work the way it does.
