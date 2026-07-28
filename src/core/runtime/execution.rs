@@ -128,22 +128,7 @@ impl Runtime {
                     self.push_scope();
 
                     self.assign_variable(identifier.clone(), RuntimeValue::U32(i));
-
-                    let result = (|| {
-                        for statement in &block.statements {
-                            let flow = self.execute_statement(statement)?;
-
-                            match flow {
-                                ControlFlow::Continue => {}
-                                ControlFlow::Break | ControlFlow::Return(_) => {
-                                    return Ok(flow);
-                                }
-                            }
-                        }
-
-                        Ok(ControlFlow::Continue)
-                    })();
-
+                    let result = self.execute_block_contents(&block);
                     self.pop_scope();
 
                     match result? {
@@ -158,6 +143,24 @@ impl Runtime {
                 Ok(ControlFlow::Continue)
             }
 
+            Expression::ArrayInitialization(init) => {
+                for item in &init.initialized_fields {
+                    self.push_scope();
+                    let value = self.evaluate_expression(item)?;
+                    self.assign_variable(identifier.clone(), value);
+                    let result = self.execute_block_contents(&block);
+                    self.pop_scope();
+
+                    match result? {
+                        ControlFlow::Continue => {}
+                        ControlFlow::Break => break,
+                        ControlFlow::Return(value) => {
+                            return Ok(ControlFlow::Return(value));
+                        }
+                    }
+                }
+                Ok(ControlFlow::Continue)
+            }
             _ => todo!("for non-range iterables (e.g. arrays)"),
         }
     }
