@@ -1,7 +1,7 @@
 use crate::core::{
     lang::ast::{
         Assignment, AssignmentTarget, Block, ControlStatement, Expression, Program, Return,
-        Statement,
+        Statement, Value,
     },
     runtime::{ControlFlow, Runtime, RuntimeError, RuntimeResult, RuntimeValue, StatementResult},
 };
@@ -95,10 +95,19 @@ impl Runtime {
 
     fn execute_for(
         &mut self,
-        identifier: &String,
+        iterator_identifier: &String,
         iterable: &Expression,
         block: &Block,
     ) -> StatementResult {
+        let iterate =
+            |runtime: &mut Runtime, identifier: &String, value: RuntimeValue| -> StatementResult {
+                runtime.push_scope();
+                runtime.assign_variable(identifier.clone(), value);
+                let result = runtime.execute_block_contents(block);
+                runtime.pop_scope();
+                result
+            };
+
         match iterable {
             Expression::Range { start, end } => {
                 let start = self.evaluate_expression(start)?;
@@ -125,13 +134,7 @@ impl Runtime {
                 };
 
                 for i in start..end {
-                    self.push_scope();
-
-                    self.assign_variable(identifier.clone(), RuntimeValue::U32(i));
-                    let result = self.execute_block_contents(&block);
-                    self.pop_scope();
-
-                    match result? {
+                    match iterate(self, iterator_identifier, RuntimeValue::U32(i))? {
                         ControlFlow::Continue => {}
                         ControlFlow::Break => break,
                         ControlFlow::Return(value) => {
@@ -145,13 +148,9 @@ impl Runtime {
 
             Expression::ArrayInitialization(init) => {
                 for item in &init.initialized_fields {
-                    self.push_scope();
                     let value = self.evaluate_expression(item)?;
-                    self.assign_variable(identifier.clone(), value);
-                    let result = self.execute_block_contents(&block);
-                    self.pop_scope();
 
-                    match result? {
+                    match iterate(self, iterator_identifier, value)? {
                         ControlFlow::Continue => {}
                         ControlFlow::Break => break,
                         ControlFlow::Return(value) => {
@@ -161,7 +160,33 @@ impl Runtime {
                 }
                 Ok(ControlFlow::Continue)
             }
-            _ => todo!("for non-range iterables (e.g. arrays)"),
+
+            Expression::Value(value) => match value {
+                Value::Identifier(iterable_identifier) => {
+                    let var = self.get_variable(iterable_identifier)?;
+                    let value = var.borrow().value();
+
+                    match value {
+                        RuntimeValue::Array { contents, .. } => {
+                            for item in &contents {
+                                match iterate(self, iterator_identifier, item.clone())? {
+                                    ControlFlow::Continue => {}
+                                    ControlFlow::Break => break,
+                                    ControlFlow::Return(value) => {
+                                        return Ok(ControlFlow::Return(value));
+                                    }
+                                }
+                            }
+                        }
+                        _ => unreachable!("{:?}", value),
+                    }
+
+                    Ok(ControlFlow::Continue)
+                }
+
+                _ => unreachable!("{:?}", value),
+            },
+            _ => todo!("cannot iterate on {:?}", iterable),
         }
     }
 
