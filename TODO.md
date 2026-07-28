@@ -47,3 +47,7 @@ string formatting function (like format!(...))
 filesystem functions
 
 assertions
+
+write tests for like. every operator ever
+
+actual unary operations (negation)
