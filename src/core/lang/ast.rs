@@ -74,6 +74,10 @@ pub enum Expression {
         expression: Box<Expression>,
         field_identifier: String,
     },
+    ArrayAccess {
+        expression: Box<Expression>,
+        index_expression: Box<Expression>,
+    },
     Reference(Box<Expression>),
     Dereference(Box<Expression>),
     MethodCall {
@@ -688,6 +692,16 @@ fn build_postfix(pair: Pair<Rule>) -> Result<Expression> {
                     method_identifier,
                     arguments,
                 }
+            }
+
+            Rule::ArrayAccess => {
+                // Expression
+                let index_expression = Box::new(build_expression(inner.next().unwrap())?);
+
+                expr = Expression::ArrayAccess {
+                    expression: Box::new(expr),
+                    index_expression,
+                };
             }
             _ => unreachable!("{:?}", rule),
         }

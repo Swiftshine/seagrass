@@ -58,6 +58,8 @@ pub enum RuntimeError {
     AttributeNotFound(&'static str),
     #[error("Cannot infer array type from empty array")]
     CannotInferEmptyArrayType,
+    #[error("Array index {0} invalid")]
+    InvalidArrayIndex(String),
 
     // Mismatches
     #[error("Unsupported binary operation for '[{lhs_type}] {operation} [{rhs_type}]'")]
@@ -129,6 +131,10 @@ pub enum RuntimeError {
     InvalidFunctionArguments { signature: String, note: String },
     #[error("References cannot have default values")]
     CannotDefaultInitializeReference,
+    #[error("Array index {index} out of bounds when the length is {length}")]
+    ArrayIndexOutOfBounds { index: usize, length: usize },
+    #[error("Cannot index type {0}")]
+    CannotIndexNonArrayType(String),
 
     // De/Serialization errors
     #[error("Attempted to serialize the following non-ascii string as ascii: {0}")]

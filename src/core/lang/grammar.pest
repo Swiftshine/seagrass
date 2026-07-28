@@ -291,7 +291,12 @@ Postfix = {
 
 PostfixOperation = _{
     MethodCall |
-    FieldAccess
+    FieldAccess |
+    ArrayAccess
+}
+
+ArrayAccess = {
+    LBracket ~ Expression ~ RBracket
 }
 
 // distinct from FunctionCall; a method here is a function attached to a struct

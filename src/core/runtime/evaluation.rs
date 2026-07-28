@@ -93,6 +93,39 @@ impl Runtime {
                 }
             }
 
+            Expression::ArrayAccess {
+                expression,
+                index_expression,
+            } => {
+                let index = match self.evaluate_expression(index_expression)? {
+                    RuntimeValue::U32(i) => i as usize,
+                    RuntimeValue::S32(i) if i >= 0 => i as usize,
+                    value => {
+                        return Err(RuntimeError::InvalidArrayIndex(
+                            value.data_type()?.to_string(),
+                        ));
+                    }
+                };
+
+                let value = self.evaluate_expression(expression)?.resolve();
+
+                match value {
+                    RuntimeValue::Array { contents, .. } => {
+                        contents
+                            .get(index)
+                            .cloned()
+                            .ok_or(RuntimeError::ArrayIndexOutOfBounds {
+                                index,
+                                length: contents.len(),
+                            })
+                    }
+
+                    _ => Err(RuntimeError::CannotIndexNonArrayType(
+                        value.data_type()?.to_string(),
+                    )),
+                }
+            }
+
             Expression::Reference(expression) => match expression.as_ref() {
                 Expression::Value(Value::Identifier(identifier)) => {
                     let variable = self.get_variable(identifier)?;
