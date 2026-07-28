@@ -182,17 +182,18 @@ impl Runtime {
 
         if matches!(field_definition.data_type, DataType::String)
             && let Ok(attribute) = field_definition.get_attribute("serialize_as")
-            && let Expression::Value(Value::String(string)) = &attribute.arguments[0] {
-                match string.as_str() {
-                    "ascii" => exceptions.push(ValidationException::SerializeAsAscii),
-                    _ => {
-                        return Err(RuntimeError::UnexpectedAttributeArgument {
-                            attribute: attribute.identifier.clone(),
-                            found: string.clone(),
-                        });
-                    }
+            && let Expression::Value(Value::String(string)) = &attribute.arguments[0]
+        {
+            match string.as_str() {
+                "ascii" => exceptions.push(ValidationException::SerializeAsAscii),
+                _ => {
+                    return Err(RuntimeError::UnexpectedAttributeArgument {
+                        attribute: attribute.identifier.clone(),
+                        found: string.clone(),
+                    });
                 }
             }
+        }
 
         Ok(exceptions)
     }
@@ -333,6 +334,12 @@ impl Runtime {
 
             RuntimeValue::Bool(value) => {
                 output.push(if *value { 1 } else { 0 });
+            }
+
+            RuntimeValue::Array { contents, .. } => {
+                for item in contents {
+                    self.serialize_value(item, output, byte_order)?;
+                }
             }
 
             RuntimeValue::Struct { definition, fields } => {
