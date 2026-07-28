@@ -237,26 +237,45 @@ impl Runtime {
                 method_identifier,
                 arguments,
             } => {
-                // later on i plan on implementing custom functions for native types
-                // but for now, structs only
-
                 let value = self.evaluate_method_receiver(expression)?;
                 value.assert_reference()?;
 
-                // find name of the struct definition
-                let struct_identifier = if value.is_reference() {
+                let data_type = if value.is_reference() {
                     value.dereference()?.data_type()?
                 } else {
                     value.data_type()?
+                };
+
+                let data_type_identifier = data_type.to_string();
+                match data_type {
+                    DataType::Array { .. } => {
+                        let args = arguments
+                            .iter()
+                            .flat_map(|expr| self.evaluate_expression(expr))
+                            .collect();
+
+                        self.invoke_method_for_array(
+                            data_type.clone(),
+                            method_identifier,
+                            value,
+                            args,
+                        )
+                    }
+                    DataType::UserDefined(_) => {
+                        let args = arguments
+                            .iter()
+                            .flat_map(|expr| self.evaluate_expression(expr))
+                            .collect();
+
+                        self.invoke_method_for_struct(
+                            &data_type_identifier,
+                            method_identifier,
+                            value,
+                            args,
+                        )
+                    }
+                    _ => Err(RuntimeError::CannotInvokeMethodOnType(data_type_identifier)),
                 }
-                .to_string();
-
-                let args = arguments
-                    .iter()
-                    .flat_map(|expr| self.evaluate_expression(expr))
-                    .collect();
-
-                self.invoke_method(&struct_identifier, method_identifier, value, args)
             }
 
             _ => unreachable!("{:?}", expression),

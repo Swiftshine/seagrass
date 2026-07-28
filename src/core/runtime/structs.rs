@@ -235,7 +235,7 @@ impl Runtime {
         }
     }
 
-    pub fn invoke_method(
+    pub fn invoke_method_for_struct(
         &mut self,
         struct_identifier: &str,
         method_identifier: &str,

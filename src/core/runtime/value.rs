@@ -6,6 +6,7 @@ use crate::core::{
 };
 
 pub type RuntimeReference = Rc<RefCell<RuntimeVariable>>;
+// pub type RuntimeIterator = Rc<RefCell<RuntimeValue>>;
 
 impl RuntimeValue {
     pub fn expect_reference(&self) -> RuntimeResult<RuntimeReference> {

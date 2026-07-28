@@ -1,4 +1,5 @@
 pub(crate) mod accessors;
+pub(crate) mod arrays;
 pub(crate) mod evaluation;
 pub(crate) mod execution;
 pub(crate) mod functions;
@@ -13,10 +14,12 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::{
     lang::ast::{
-        AssignmentTarget, DataType, FunctionDefinition, Parameter, StructDefinition, StructImpl,
+        AssignmentTarget, FunctionDefinition, MethodDefinition, Parameter, StructDefinition,
+        StructImpl,
     },
+    native::BuiltinMethodTarget,
     runtime::{
-        functions::{FunctionFrame, RuntimeFunction},
+        functions::{FunctionFrame, NativeFunction, RuntimeFunction},
         scopes::{RuntimeScope, RuntimeScopeType},
         structs::ByteOrder,
         value::RuntimeVariable,
@@ -39,6 +42,8 @@ pub enum RuntimeError {
     NotAUserDefinedFunction(String),
     #[error("Function '{0}' is not a native function")]
     NotANativeFunction(String),
+    #[error("Method '{method}' is not a built-in method for '{data_type}'")]
+    NotABuiltInMethod { method: String, data_type: String },
     #[error("Function '{0}' not in call stack")]
     FunctionNotInCallStack(String),
     #[error("Expected data type, but found None")]
@@ -88,6 +93,8 @@ pub enum RuntimeError {
     CannotDereferenceNonReference,
     #[error("Cannot coerce a '{from}' into a '{to}'")]
     TypeCoercionFail { from: String, to: String },
+    #[error("Cannot invoke a method on type '{0}'")]
+    CannotInvokeMethodOnType(String),
 
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]
@@ -191,9 +198,9 @@ pub struct Runtime {
     functions: HashMap<String, RuntimeFunction>,
     structs: HashMap<String, Rc<StructDefinition>>,
     struct_impls: HashMap<String, Rc<StructImpl>>,
+    builtin_methods: HashMap<BuiltinMethodTarget, HashMap<String, NativeFunction>>,
     config: RuntimeConfig,
     byte_order: ByteOrder,
-    attemped_initialized_array_type: Option<DataType>,
 }
 
 impl Default for Runtime {
@@ -214,7 +221,7 @@ impl Runtime {
             struct_impls: HashMap::new(),
             config: RuntimeConfig::default(),
             byte_order: ByteOrder::Little,
-            attemped_initialized_array_type: None,
+            builtin_methods: HashMap::new(),
         }
     }
 
@@ -350,14 +357,15 @@ impl Runtime {
         self.byte_order = byte_order;
     }
 
-    pub fn set_attemped_initialized_array_type(
+    pub fn builtin_methods_mut(
         &mut self,
-        attemped_initialized_array_type: Option<DataType>,
-    ) {
-        self.attemped_initialized_array_type = attemped_initialized_array_type;
+    ) -> &mut HashMap<BuiltinMethodTarget, HashMap<String, NativeFunction>> {
+        &mut self.builtin_methods
     }
 
-    pub fn attemped_initialized_array_type(&self) -> Option<&DataType> {
-        self.attemped_initialized_array_type.as_ref()
+    pub fn builtin_methods(
+        &self,
+    ) -> &HashMap<BuiltinMethodTarget, HashMap<String, NativeFunction>> {
+        &self.builtin_methods
     }
 }

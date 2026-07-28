@@ -8,6 +8,9 @@ use crate::core::{
 
 impl Runtime {
     pub fn execute(&mut self, program: &Program) -> RuntimeResult<()> {
+        // collect functions for built-in data types
+        self.register_builtin_methods();
+
         // collect sg:: functions
         self.register_native_functions();
 
@@ -186,6 +189,7 @@ impl Runtime {
 
                 _ => unreachable!("{:?}", value),
             },
+
             _ => todo!("cannot iterate on {:?}", iterable),
         }
     }
