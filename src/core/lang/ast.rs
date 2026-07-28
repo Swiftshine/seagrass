@@ -781,11 +781,10 @@ fn build_atom(pair: Pair<Rule>) -> Result<Expression> {
 fn build_array_initialization(pair: Pair<Rule>) -> Result<ArrayInitialization> {
     assert_eq!(pair.as_rule(), Rule::ArrayInitialization);
 
-    let mut inner = pair.into_inner();
     let mut initialized_fields = Vec::new();
     let mut use_defaults = false;
 
-    for pair in inner {
+    for pair in pair.into_inner() {
         match pair.as_rule() {
             Rule::ArrayInitializers => {
                 initialized_fields = build_array_initializers(pair)?;
@@ -1155,13 +1154,14 @@ fn collect_generics(inner: &mut pest::iterators::Pairs<Rule>) -> Result<Vec<Data
     let mut generics = Vec::new();
 
     if let Some(pair) = inner.peek()
-        && pair.as_rule() == Rule::GenericArguments {
-            let pair = inner.next().unwrap(); // consume it
+        && pair.as_rule() == Rule::GenericArguments
+    {
+        let pair = inner.next().unwrap(); // consume it
 
-            for pair in pair.into_inner() {
-                generics.push(build_data_type(pair)?);
-            }
+        for pair in pair.into_inner() {
+            generics.push(build_data_type(pair)?);
         }
+    }
 
     Ok(generics)
 }
