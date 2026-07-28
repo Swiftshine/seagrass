@@ -1,7 +1,7 @@
 use crate::core::{
     lang::ast::DataType,
     native::{BuiltinMethodTarget, NativeFunctionContext},
-    runtime::{Runtime, RuntimeError, RuntimeResult, RuntimeValue, functions::NativeFunction},
+    runtime::{Runtime, RuntimeError, RuntimeResult, RuntimeValue},
 };
 
 impl Runtime {

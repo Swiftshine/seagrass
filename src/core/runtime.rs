@@ -13,10 +13,7 @@ pub use value::RuntimeValue;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::{
-    lang::ast::{
-        AssignmentTarget, FunctionDefinition, MethodDefinition, Parameter, StructDefinition,
-        StructImpl,
-    },
+    lang::ast::{AssignmentTarget, FunctionDefinition, Parameter, StructDefinition, StructImpl},
     native::BuiltinMethodTarget,
     runtime::{
         functions::{FunctionFrame, NativeFunction, RuntimeFunction},
