@@ -7,7 +7,7 @@ control flow (if/else statements, loops...)
 - [x] Unconditional loops
 - [ ] For loops
 
-type casting
+(explicit) type casting
 
 bitwise operations
 
@@ -15,7 +15,7 @@ include statements
 
 - i'd also like some functions to run only when they're configured to upon load, perhaps to initialise values or something
 
-arrays + vectors
+vectors
 
 - dependent-length arrays might look something like this:
 
