@@ -45,3 +45,5 @@ hex dumps
 string formatting function (like format!(...))
 
 filesystem functions
+
+assertions
