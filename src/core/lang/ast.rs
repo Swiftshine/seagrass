@@ -785,7 +785,7 @@ fn build_array_initialization(pair: Pair<Rule>) -> Result<ArrayInitialization> {
     let mut initialized_fields = Vec::new();
     let mut use_defaults = false;
 
-    while let Some(pair) = inner.next() {
+    for pair in inner {
         match pair.as_rule() {
             Rule::ArrayInitializers => {
                 initialized_fields = build_array_initializers(pair)?;
@@ -827,7 +827,7 @@ fn build_struct_initialization(pair: Pair<Rule>) -> Result<StructInitialization>
     let mut initialized_fields = Vec::new();
     let mut use_defaults = false;
 
-    while let Some(pair) = inner.next() {
+    for pair in inner {
         match pair.as_rule() {
             // StructFieldInitializers?
             Rule::StructFieldInitializers => {
@@ -1154,15 +1154,14 @@ fn build_function_call(pair: Pair<Rule>) -> Result<FunctionCall> {
 fn collect_generics(inner: &mut pest::iterators::Pairs<Rule>) -> Result<Vec<DataType>> {
     let mut generics = Vec::new();
 
-    if let Some(pair) = inner.peek() {
-        if pair.as_rule() == Rule::GenericArguments {
+    if let Some(pair) = inner.peek()
+        && pair.as_rule() == Rule::GenericArguments {
             let pair = inner.next().unwrap(); // consume it
 
             for pair in pair.into_inner() {
                 generics.push(build_data_type(pair)?);
             }
         }
-    }
 
     Ok(generics)
 }

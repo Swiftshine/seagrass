@@ -46,7 +46,7 @@ pub(crate) mod sg {
             }
         };
 
-        let bytes = std::fs::read(filename).expect(&format!("could not find file {filename}"));
+        let bytes = std::fs::read(filename).unwrap_or_else(|_| panic!("could not find file {filename}"));
 
         let value = context.runtime.deserialize(&context.generics[0], &bytes)?;
 

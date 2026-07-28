@@ -175,18 +175,12 @@ pub enum RuntimeConfigOption {
 }
 
 #[derive(Debug)]
+#[derive(Default)]
 pub struct RuntimeConfig {
     /// (Development) Allows expired function frames and scopes to be preserved to inspect its end-of-life state.
     preserve_expired_frames: bool,
 }
 
-impl Default for RuntimeConfig {
-    fn default() -> Self {
-        Self {
-            preserve_expired_frames: false,
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct Runtime {

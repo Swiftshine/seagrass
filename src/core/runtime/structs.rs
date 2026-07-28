@@ -182,8 +182,7 @@ impl Runtime {
 
         if matches!(field_definition.data_type, DataType::String)
             && let Ok(attribute) = field_definition.get_attribute("serialize_as")
-        {
-            if let Expression::Value(Value::String(string)) = &attribute.arguments[0] {
+            && let Expression::Value(Value::String(string)) = &attribute.arguments[0] {
                 match string.as_str() {
                     "ascii" => exceptions.push(ValidationException::SerializeAsAscii),
                     _ => {
@@ -194,7 +193,6 @@ impl Runtime {
                     }
                 }
             }
-        }
 
         Ok(exceptions)
     }
@@ -225,7 +223,7 @@ impl Runtime {
                 self.validate_pod_for_data_type(data_type, exceptions)
             }
             DataType::UserDefined(identifier) => {
-                let struct_field_definition = self.get_struct_definition(&identifier)?;
+                let struct_field_definition = self.get_struct_definition(identifier)?;
 
                 if !struct_field_definition.is_declared_pod() {
                     return Err(RuntimeError::NonPODType(identifier.clone()));
@@ -558,7 +556,6 @@ impl Runtime {
                 let count = *count;
 
                 let contents: Box<[RuntimeValue]> = (0..count)
-                    .into_iter()
                     .flat_map(|_| self.deserialize_value(data_type, bytes, offset, byte_order))
                     .collect();
 
