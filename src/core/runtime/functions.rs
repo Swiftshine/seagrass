@@ -5,7 +5,7 @@ use crate::core::{
     native::NativeFunctionContext,
     runtime::{
         ControlFlow, Runtime, RuntimeError, RuntimeResult, RuntimeScope, RuntimeScopeType,
-        RuntimeValue, RuntimeVariable, StatementResult, value::RuntimeReference,
+        RuntimeValue, StatementResult, value::RuntimeReference,
     },
 };
 
@@ -20,7 +20,7 @@ impl FunctionFrame {
         let mut scope = RuntimeScope::new(RuntimeScopeType::Function);
 
         for (identifier, value) in args {
-            let var_ref = Rc::new(RefCell::new(RuntimeVariable::from_value(value)));
+            let var_ref = Rc::new(RefCell::new(value));
             scope.variables.insert(identifier, var_ref);
         }
 

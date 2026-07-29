@@ -19,7 +19,6 @@ use crate::core::{
         functions::{FunctionFrame, NativeFunction, RuntimeFunction},
         scopes::{RuntimeScope, RuntimeScopeType},
         structs::ByteOrder,
-        value::RuntimeVariable,
     },
 };
 
@@ -244,7 +243,7 @@ impl Runtime {
     }
 
     fn assign_variable(&mut self, identifier: String, value: RuntimeValue) {
-        let variable = Rc::new(RefCell::new(RuntimeVariable::from_value(value)));
+        let variable = Rc::new(RefCell::new(value));
 
         if self.call_stack.is_empty() {
             if !self.global_sub_scopes.is_empty() {
@@ -271,15 +270,17 @@ impl Runtime {
         target: &AssignmentTarget,
         mut value: RuntimeValue,
     ) -> RuntimeResult<()> {
-        let lvalue = self.evaluate_lvalue(target)?;
+        todo!()
 
-        let existing_type = lvalue.read()?.data_type()?;
+        // let lvalue = self.evaluate_lvalue(target)?;
 
-        value = self.coerce(value, &existing_type)?;
+        // let existing_type = lvalue.read()?.data_type()?;
 
-        lvalue.write(value)?;
+        // value = self.coerce(value, &existing_type)?;
 
-        Ok(())
+        // lvalue.write(value)?;
+
+        // Ok(())
     }
 
     fn define_function(&mut self, func: &FunctionDefinition) -> StatementResult {

@@ -167,7 +167,7 @@ impl Runtime {
             Expression::Value(value) => match value {
                 Value::Identifier(iterable_identifier) => {
                     let var = self.get_variable(iterable_identifier)?;
-                    let value = var.borrow().value();
+                    let value = var.borrow().clone();
 
                     match value {
                         RuntimeValue::Array { contents, .. } => {

@@ -5,7 +5,7 @@ use crate::core::{
     runtime::{Runtime, RuntimeError, RuntimeResult},
 };
 
-pub type RuntimeReference = Rc<RefCell<RuntimeVariable>>;
+pub type RuntimeReference = Rc<RefCell<RuntimeValue>>;
 // pub type RuntimeIterator = Rc<RefCell<RuntimeValue>>;
 
 impl RuntimeValue {
@@ -20,136 +20,136 @@ impl RuntimeValue {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum LValue {
-    Variable(RuntimeReference),
-    ArrayElement { array: Box<LValue>, index: usize },
-    StructField { object: Box<LValue>, field: String },
-}
+// #[derive(Debug, Clone, PartialEq)]
+// pub enum LValue {
+//     Variable(RuntimeReference),
+//     ArrayElement { array: Box<LValue>, index: usize },
+//     StructField { object: Box<LValue>, field: String },
+// }
 
-impl LValue {
-    pub fn read(&self) -> RuntimeResult<RuntimeValue> {
-        match self {
-            Self::Variable(reference) => Ok(reference.borrow().value()),
+// impl LValue {
+//     pub fn read(&self) -> RuntimeResult<RuntimeValue> {
+//         match self {
+//             Self::Variable(reference) => Ok(reference.borrow().value()),
 
-            Self::ArrayElement { array, index } => {
-                let value = array.read()?;
+//             Self::ArrayElement { array, index } => {
+//                 let value = array.read()?;
 
-                match value {
-                    RuntimeValue::Array { contents, .. } => {
-                        contents
-                            .get(*index)
-                            .cloned()
-                            .ok_or(RuntimeError::ArrayIndexOutOfBounds {
-                                index: *index,
-                                length: contents.len(),
-                            })
-                    }
+//                 match value {
+//                     RuntimeValue::Array { contents, .. } => {
+//                         contents
+//                             .get(*index)
+//                             .cloned()
+//                             .ok_or(RuntimeError::ArrayIndexOutOfBounds {
+//                                 index: *index,
+//                                 length: contents.len(),
+//                             })
+//                     }
 
-                    other => Err(RuntimeError::CannotIndexNonArrayType(
-                        other.data_type()?.to_string(),
-                    )),
-                }
-            }
+//                     other => Err(RuntimeError::CannotIndexNonArrayType(
+//                         other.data_type()?.to_string(),
+//                     )),
+//                 }
+//             }
 
-            Self::StructField { object, field } => {
-                let value = object.read()?;
+//             Self::StructField { object, field } => {
+//                 let value = object.read()?;
 
-                match value {
-                    RuntimeValue::Struct { definition, fields } => fields
-                        .get(field)
-                        .cloned()
-                        .ok_or(RuntimeError::InvalidStructFieldAccess {
-                            field_name: field.clone(),
-                            struct_name: definition.identifier.clone(),
-                        }),
+//                 match value {
+//                     RuntimeValue::Struct { definition, fields } => fields
+//                         .get(field)
+//                         .cloned()
+//                         .ok_or(RuntimeError::InvalidStructFieldAccess {
+//                             field_name: field.clone(),
+//                             struct_name: definition.identifier.clone(),
+//                         }),
 
-                    other => Err(RuntimeError::InvalidStructFieldAccessTarget {
-                        field: field.clone(),
-                        data_type: other.data_type()?.to_string(),
-                    }),
-                }
-            }
-        }
-    }
+//                     other => Err(RuntimeError::InvalidStructFieldAccessTarget {
+//                         field: field.clone(),
+//                         data_type: other.data_type()?.to_string(),
+//                     }),
+//                 }
+//             }
+//         }
+//     }
 
-    pub fn write(&self, value: RuntimeValue) -> RuntimeResult<()> {
-        match self {
-            Self::Variable(variable) => {
-                variable.borrow_mut().set_value(value)?;
-                Ok(())
-            }
+//     pub fn write(&self, value: RuntimeValue) -> RuntimeResult<()> {
+//         match self {
+//             Self::Variable(variable) => {
+//                 variable.borrow_mut().set_value(value)?;
+//                 Ok(())
+//             }
 
-            Self::ArrayElement { array, index } => {
-                let mut array_value = array.read()?;
+//             Self::ArrayElement { array, index } => {
+//                 let mut array_value = array.read()?;
 
-                match &mut array_value {
-                    RuntimeValue::Array { contents, .. } => {
-                        contents[*index] = value;
-                        array.write(array_value)
-                    }
+//                 match &mut array_value {
+//                     RuntimeValue::Array { contents, .. } => {
+//                         contents[*index] = value;
+//                         array.write(array_value)
+//                     }
 
-                    other => Err(RuntimeError::CannotIndexNonArrayType(
-                        other.data_type()?.to_string(),
-                    )),
-                }
-            }
+//                     other => Err(RuntimeError::CannotIndexNonArrayType(
+//                         other.data_type()?.to_string(),
+//                     )),
+//                 }
+//             }
 
-            Self::StructField { object, field } => {
-                let mut object_value = object.read()?;
+//             Self::StructField { object, field } => {
+//                 let mut object_value = object.read()?;
 
-                match &mut object_value {
-                    RuntimeValue::Struct { fields, .. } => {
-                        fields.insert(field.clone(), value);
-                        object.write(object_value)
-                    }
+//                 match &mut object_value {
+//                     RuntimeValue::Struct { fields, .. } => {
+//                         fields.insert(field.clone(), value);
+//                         object.write(object_value)
+//                     }
 
-                    other => Err(RuntimeError::InvalidStructFieldAccessTarget {
-                        field: field.clone(),
-                        data_type: other.data_type()?.to_string(),
-                    }),
-                }
-            }
-        }
-    }
-}
+//                     other => Err(RuntimeError::InvalidStructFieldAccessTarget {
+//                         field: field.clone(),
+//                         data_type: other.data_type()?.to_string(),
+//                     }),
+//                 }
+//             }
+//         }
+//     }
+// }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct RuntimeVariable {
-    pub value: RuntimeValue,
-    pub data_type: DataType,
-}
+// #[derive(Debug, Clone, PartialEq)]
+// pub struct RuntimeVariable {
+//     pub value: RuntimeValue,
+//     pub data_type: DataType,
+// }
 
-impl RuntimeVariable {
-    pub fn from_value(value: RuntimeValue) -> Self {
-        let data_type = value.data_type().unwrap();
+// impl RuntimeVariable {
+//     pub fn from_value(value: RuntimeValue) -> Self {
+//         let data_type = value.data_type().unwrap();
 
-        Self { value, data_type }
-    }
+//         Self { value, data_type }
+//     }
 
-    pub fn value(&self) -> RuntimeValue {
-        self.value.clone()
-    }
+//     pub fn value(&self) -> RuntimeValue {
+//         self.value.clone()
+//     }
 
-    pub fn set_value(&mut self, value: RuntimeValue) -> RuntimeResult<()> {
-        let value = match (&self.data_type, value) {
-            (DataType::U32, RuntimeValue::S32(i)) if i >= 0 => RuntimeValue::U32(i as u32),
+//     pub fn set_value(&mut self, value: RuntimeValue) -> RuntimeResult<()> {
+//         let value = match (&self.data_type, value) {
+//             (DataType::U32, RuntimeValue::S32(i)) if i >= 0 => RuntimeValue::U32(i as u32),
 
-            (expected, value) if value.data_type()? == *expected => value,
+//             (expected, value) if value.data_type()? == *expected => value,
 
-            (expected, value) => {
-                return Err(RuntimeError::AnnotationError {
-                    expected: expected.to_string(),
-                    found: value.data_type()?.to_string(),
-                });
-            }
-        };
+//             (expected, value) => {
+//                 return Err(RuntimeError::AnnotationError {
+//                     expected: expected.to_string(),
+//                     found: value.data_type()?.to_string(),
+//                 });
+//             }
+//         };
 
-        self.value = value;
+//         self.value = value;
 
-        Ok(())
-    }
-}
+//         Ok(())
+//     }
+// }
 
 impl DataType {
     pub fn can_be_coerced_into(&self, into: &Self) -> bool {
@@ -209,7 +209,7 @@ impl RuntimeValue {
             }),
 
             Self::Reference(variable) => Ok(DataType::Reference(Box::new(
-                variable.borrow().value().data_type()?,
+                variable.borrow().data_type()?,
             ))),
         }
     }
@@ -235,13 +235,13 @@ impl RuntimeValue {
         }
     }
 
-    pub fn resolve(&self) -> RuntimeValue {
-        // this function should only be called for struct
-        match self {
-            Self::Reference(reference) => reference.borrow().value().resolve(),
-            _ => self.clone(),
-        }
-    }
+    // pub fn resolve(&self) -> RuntimeValue {
+    //     // this function should only be called for struct
+    //     match self {
+    //         Self::Reference(reference) => reference.borrow().value().resolve(),
+    //         _ => self.clone(),
+    //     }
+    // }
 
     // pub fn reference(self) -> RuntimeValue {
     //     RuntimeValue::Reference(
@@ -251,7 +251,7 @@ impl RuntimeValue {
 
     pub fn dereference(&self) -> RuntimeResult<RuntimeValue> {
         match self {
-            RuntimeValue::Reference(variable) => Ok(variable.borrow().value().clone()),
+            RuntimeValue::Reference(variable) => Ok(variable.borrow().clone()),
             _ => Err(RuntimeError::CannotDereferenceNonReference),
         }
     }

@@ -281,7 +281,7 @@ impl Runtime {
             RuntimeValue::Reference(reference) => {
                 let value = reference.borrow();
 
-                self.serialize_value(&value.value(), output, self.byte_order)
+                self.serialize_value(&value, output, self.byte_order)
             }
 
             value => self.serialize_value(value, output, self.byte_order),
