@@ -51,3 +51,5 @@ assertions
 write tests for like. every operator ever
 
 actual unary operations (negation)
+
+deal with references struct fields and references to array elements - maybe make arrays contain RuntimeVariables instead of RuntimeValues?
