@@ -167,12 +167,12 @@ impl Runtime {
             Expression::Value(value) => match value {
                 Value::Identifier(iterable_identifier) => {
                     let var = self.get_variable(iterable_identifier)?;
-                    let value = var.borrow().clone();
+                    let value = var.borrow().copy_value();
 
                     match value {
                         RuntimeValue::Array { contents, .. } => {
                             for item in &contents {
-                                match iterate(self, iterator_identifier, item.clone())? {
+                                match iterate(self, iterator_identifier, item.copy_value())? {
                                     ControlFlow::Continue => {}
                                     ControlFlow::Break => break,
                                     ControlFlow::Return(value) => {

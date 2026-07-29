@@ -8,18 +8,6 @@ use crate::core::{
 pub type RuntimeReference = Rc<RefCell<RuntimeValue>>;
 // pub type RuntimeIterator = Rc<RefCell<RuntimeValue>>;
 
-impl RuntimeValue {
-    pub fn expect_reference(&self) -> RuntimeResult<RuntimeReference> {
-        match self {
-            RuntimeValue::Reference(reference) => Ok(reference.clone()),
-
-            other => Err(RuntimeError::ExpectedReference(
-                other.data_type()?.to_string(),
-            )),
-        }
-    }
-}
-
 // #[derive(Debug, Clone, PartialEq)]
 // pub enum LValue {
 //     Variable(RuntimeReference),
@@ -171,6 +159,7 @@ impl DataType {
     }
 }
 
+/// NEVER CALL `clone()` MANUALLY! ALWAYS use `copy_value()` INSTEAD!
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
     None,
@@ -190,6 +179,39 @@ pub enum RuntimeValue {
 }
 
 impl RuntimeValue {
+    pub fn into_runtime_reference(self) -> RuntimeReference {
+        Rc::new(RefCell::new(self))
+    }
+
+    pub fn copy_value(&self) -> Self {
+        match self {
+            Self::None => Self::None,
+            Self::U32(v) => Self::U32(*v),
+            Self::S32(v) => Self::S32(*v),
+            Self::String(s) => Self::String(s.clone()),
+            Self::Bool(v) => Self::Bool(*v),
+            Self::Struct { definition, fields } => Self::Struct {
+                definition: Rc::clone(definition),
+                fields: fields
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.copy_value()))
+                    .collect(),
+            },
+            Self::Reference(r) => Self::Reference(r.clone()),
+            Self::Array {
+                inner_data_type,
+                contents,
+            } => Self::Array {
+                inner_data_type: inner_data_type.clone(),
+                contents: contents
+                    .iter()
+                    .map(Self::copy_value)
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            },
+        }
+    }
+
     pub fn data_type(&self) -> RuntimeResult<DataType> {
         match self {
             Self::None => Err(RuntimeError::NoDataTypeAttached),
@@ -217,13 +239,15 @@ impl RuntimeValue {
     pub fn struct_access(&self, identifier: &str) -> RuntimeResult<RuntimeValue> {
         match self {
             Self::Struct { definition, fields } => {
-                fields
+                let value = fields
                     .get(identifier)
-                    .cloned()
+                    .map(|value| value.copy_value())
                     .ok_or(RuntimeError::InvalidStructFieldAccess {
                         field_name: identifier.to_string(),
                         struct_name: definition.identifier.clone(),
-                    })
+                    });
+
+                value
             }
 
             Self::Reference(_) => self.dereference(),
@@ -251,7 +275,7 @@ impl RuntimeValue {
 
     pub fn dereference(&self) -> RuntimeResult<RuntimeValue> {
         match self {
-            RuntimeValue::Reference(variable) => Ok(variable.borrow().clone()),
+            RuntimeValue::Reference(variable) => Ok(variable.borrow().copy_value()),
             _ => Err(RuntimeError::CannotDereferenceNonReference),
         }
     }
@@ -283,6 +307,15 @@ impl RuntimeValue {
     //         _ => Err(RuntimeError::ExpectedStruct),
     //     }
     // }
+    pub fn expect_reference(&self) -> RuntimeResult<RuntimeReference> {
+        match self {
+            RuntimeValue::Reference(reference) => Ok(reference.clone()),
+
+            other => Err(RuntimeError::ExpectedReference(
+                other.data_type()?.to_string(),
+            )),
+        }
+    }
 }
 
 impl Runtime {
@@ -296,12 +329,10 @@ impl Runtime {
                 (RuntimeValue::U32(val), DataType::S32) => Ok(RuntimeValue::S32(val as i32)),
                 (RuntimeValue::S32(val), DataType::U32) => Ok(RuntimeValue::U32(val as u32)),
                 (RuntimeValue::Array { contents, .. }, DataType::Array { data_type, count }) => {
-                    let mut vec = contents.to_vec();
-
-                    // make sure the existing type gets coerced into the new one
-                    for i in 0..vec.len() {
-                        vec[i] = self.coerce(vec[i].clone(), data_type)?
-                    }
+                    let mut vec = contents
+                        .into_iter()
+                        .flat_map(|value| self.coerce(value, data_type))
+                        .collect::<Vec<RuntimeValue>>();
 
                     vec.resize(*count, self.default_value(data_type)?);
                     let contents = vec.into_boxed_slice();
