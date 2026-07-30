@@ -266,8 +266,7 @@ impl RuntimeValue {
                 contents,
             } => Self::Array {
                 inner_data_type: inner_data_type.clone(),
-                contents: contents.to_vec()
-                    .into_boxed_slice(),
+                contents: contents.to_vec().into_boxed_slice(),
             },
             Self::Iterator {
                 inner_data_type,
@@ -299,7 +298,7 @@ impl RuntimeValue {
                 contents,
             } => Ok(DataType::Array {
                 data_type: Box::new(data_type.clone()),
-                count: contents.len(),
+                count: Some(contents.len()),
             }),
 
             Self::Reference(variable) => Ok(DataType::Reference(Box::new(
@@ -424,7 +423,7 @@ impl Runtime {
                         .collect::<Vec<RuntimeReference>>();
 
                     vec.resize(
-                        *count,
+                        count.unwrap(),
                         self.default_value(data_type)?.into_runtime_reference(),
                     );
 

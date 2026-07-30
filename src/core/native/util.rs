@@ -1,7 +1,7 @@
 pub(crate) mod sg {
     use crate::core::{
         native::NativeFunctionContext,
-        runtime::{RuntimeError, RuntimeResult, structs::ByteOrder, value::RuntimeValue},
+        runtime::{RuntimeError, RuntimeResult, serialization::ByteOrder, value::RuntimeValue},
     };
 
     pub fn print(context: NativeFunctionContext) -> RuntimeResult<RuntimeValue> {

@@ -73,13 +73,20 @@ fn build_array_type(pair: Pair<Rule>) -> Result<DataType> {
     let data_type = build_data_type(inner.next().unwrap())?;
 
     // Integer
-    let s = inner.next().unwrap().as_str();
-    let count = if let Some(hex) = s.strip_prefix("0x") {
-        usize::from_str_radix(hex, 16)?
-    } else if let Some(hex) = s.strip_prefix("0X") {
-        usize::from_str_radix(hex, 16)?
+
+    let count = if let Some(count) = inner.next() {
+        let s = count.as_str();
+        let count = if let Some(hex) = s.strip_prefix("0x") {
+            usize::from_str_radix(hex, 16)?
+        } else if let Some(hex) = s.strip_prefix("0X") {
+            usize::from_str_radix(hex, 16)?
+        } else {
+            s.parse()?
+        };
+
+        Some(count)
     } else {
-        s.parse()?
+        None
     };
 
     Ok(DataType::Array {

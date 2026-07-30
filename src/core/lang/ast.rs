@@ -220,7 +220,7 @@ pub enum DataType {
     UserDefined(String),
     Array {
         data_type: Box<DataType>,
-        count: usize,
+        count: Option<usize>,
     },
 }
 
@@ -238,7 +238,13 @@ impl std::fmt::Display for DataType {
             Self::Usize => write!(f, "usize"),
             Self::Reference(data_type) => write!(f, "&{}", data_type),
             Self::UserDefined(user_defined_type) => write!(f, "{user_defined_type}"),
-            Self::Array { data_type, count } => write!(f, "[{}; {}]", data_type, count),
+            Self::Array { data_type, count } => {
+                if let Some(count) = count {
+                    write!(f, "[{};{}]", data_type, count)
+                } else {
+                    unreachable!("[{}] should only exist when serializing", data_type)
+                }
+            }
             Self::Iterator(data_type) => write!(f, "iterator<{}>", data_type),
         }
     }

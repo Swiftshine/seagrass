@@ -431,7 +431,7 @@ impl Runtime {
         }
     }
 
-    fn resolve_ast_value(&self, value: &Value) -> RuntimeResult<RuntimeValue> {
+    pub fn resolve_ast_value(&self, value: &Value) -> RuntimeResult<RuntimeValue> {
         match value {
             Value::S8(i) => Ok(RuntimeValue::S8(*i)),
 

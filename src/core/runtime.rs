@@ -5,6 +5,7 @@ pub(crate) mod execution;
 pub(crate) mod functions;
 pub(crate) mod operators;
 pub(crate) mod scopes;
+pub(crate) mod serialization;
 pub(crate) mod structs;
 pub(crate) mod value;
 
@@ -18,7 +19,7 @@ use crate::core::{
     runtime::{
         functions::{FunctionFrame, NativeFunction, RuntimeFunction},
         scopes::{RuntimeScope, RuntimeScopeType},
-        structs::ByteOrder,
+        serialization::ByteOrder,
     },
 };
 
@@ -159,6 +160,10 @@ pub enum RuntimeError {
     SerializationError(String),
     #[error("Cannot deserialize a '{0}'")]
     CannotDeserialize(String),
+    #[error("An array must have a count")]
+    UncountedArray,
+    #[error("Failed to perform I/O operation: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 impl RuntimeError {

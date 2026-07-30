@@ -24,11 +24,9 @@ pub(crate) mod sg {
             }
         };
 
-        let mut bytes = Vec::new();
+        let bytes = runtime.serialize_into(value)?;
 
-        runtime.serialize_into(value, &mut bytes)?;
-
-        std::fs::write(filename, bytes).map_err(|_| todo!("filesystem error"))?;
+        std::fs::write(filename, bytes)?;
 
         Ok(RuntimeValue::None)
     }
@@ -46,7 +44,8 @@ pub(crate) mod sg {
             }
         };
 
-        let bytes = std::fs::read(filename).unwrap_or_else(|_| panic!("could not find file {filename}"));
+        let bytes =
+            std::fs::read(filename).unwrap_or_else(|_| panic!("could not find file {filename}"));
 
         let value = context.runtime.deserialize(&context.generics[0], &bytes)?;
 
