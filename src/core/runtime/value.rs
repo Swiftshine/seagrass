@@ -8,58 +8,105 @@ use crate::core::{
 pub type RuntimeReference = Rc<RefCell<RuntimeValue>>;
 // pub type RuntimeIterator = Rc<RefCell<RuntimeValue>>;
 
-// #[derive(Debug, Clone, PartialEq)]
-// pub enum LValue {
-//     Variable(RuntimeReference),
-//     ArrayElement { array: Box<LValue>, index: usize },
-//     StructField { object: Box<LValue>, field: String },
-// }
+#[derive(Debug, Clone, PartialEq)]
+pub enum LValue {
+    Reference(RuntimeReference),
+    ArrayElement { array: Box<LValue>, index: usize },
+    StructField { object: Box<LValue>, field: String },
+}
+
+impl LValue {
+    pub fn get_reference(&self) -> RuntimeReference {
+        match self {
+            Self::Reference(reference) => Rc::clone(reference),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn read_value(&self) -> RuntimeResult<RuntimeValue> {
+        match self {
+            Self::Reference(reference) => Ok(reference.borrow().copy_value()),
+
+            Self::ArrayElement { array, index } => {
+                let array_runtime_value = array.read_value()?;
+
+                if let RuntimeValue::Array { contents, .. } = array_runtime_value {
+                    let value = contents.get(*index).map(RuntimeValue::copy_value).ok_or(
+                        RuntimeError::ArrayIndexOutOfBounds {
+                            index: *index,
+                            length: contents.len(),
+                        },
+                    );
+
+                    value
+                } else {
+                    Err(RuntimeError::CannotIndexNonArrayType(
+                        array_runtime_value.data_type()?.to_string(),
+                    ))
+                }
+            }
+
+            Self::StructField { object, field } => {
+                let struct_runtime_value = object.read_value()?;
+
+                if let RuntimeValue::Struct { definition, fields } = struct_runtime_value {
+                    let value = fields.get(field).map(RuntimeValue::copy_value).ok_or(
+                        RuntimeError::InvalidStructFieldAccess {
+                            field_name: field.clone(),
+                            struct_name: definition.identifier.clone(),
+                        },
+                    );
+
+                    value
+                } else {
+                    Err(RuntimeError::InvalidStructFieldAccessTarget {
+                        field: field.clone(),
+                        data_type: struct_runtime_value.data_type()?.to_string(),
+                    })
+                }
+            }
+        }
+    }
+
+    pub fn write_value(&self, value: RuntimeValue) -> RuntimeResult<()> {
+        match self {
+            Self::Reference(reference) => {
+                *reference.borrow_mut() = value;
+                Ok(())
+            }
+
+            Self::ArrayElement { array, index } => {
+                let array_reference = array.get_reference();
+
+                if let RuntimeValue::Array { contents, .. } = &mut *array_reference.borrow_mut() {
+                    contents[*index] = value;
+                    Ok(())
+                } else {
+                    Err(RuntimeError::CannotIndexNonArrayType(
+                        array_reference.borrow().data_type()?.to_string(),
+                    ))
+                }
+            }
+
+            Self::StructField { object, field } => {
+                let struct_reference = object.get_reference();
+
+                if let RuntimeValue::Struct { fields, .. } = &mut *struct_reference.borrow_mut() {
+                    fields.insert(field.clone(), value);
+                    Ok(())
+                } else {
+                    Err(RuntimeError::InvalidStructFieldAccessTarget {
+                        field: field.clone(),
+                        data_type: struct_reference.borrow().data_type()?.to_string(),
+                    })
+                }
+            }
+            _ => todo!(),
+        }
+    }
+}
 
 // impl LValue {
-//     pub fn read(&self) -> RuntimeResult<RuntimeValue> {
-//         match self {
-//             Self::Variable(reference) => Ok(reference.borrow().value()),
-
-//             Self::ArrayElement { array, index } => {
-//                 let value = array.read()?;
-
-//                 match value {
-//                     RuntimeValue::Array { contents, .. } => {
-//                         contents
-//                             .get(*index)
-//                             .cloned()
-//                             .ok_or(RuntimeError::ArrayIndexOutOfBounds {
-//                                 index: *index,
-//                                 length: contents.len(),
-//                             })
-//                     }
-
-//                     other => Err(RuntimeError::CannotIndexNonArrayType(
-//                         other.data_type()?.to_string(),
-//                     )),
-//                 }
-//             }
-
-//             Self::StructField { object, field } => {
-//                 let value = object.read()?;
-
-//                 match value {
-//                     RuntimeValue::Struct { definition, fields } => fields
-//                         .get(field)
-//                         .cloned()
-//                         .ok_or(RuntimeError::InvalidStructFieldAccess {
-//                             field_name: field.clone(),
-//                             struct_name: definition.identifier.clone(),
-//                         }),
-
-//                     other => Err(RuntimeError::InvalidStructFieldAccessTarget {
-//                         field: field.clone(),
-//                         data_type: other.data_type()?.to_string(),
-//                     }),
-//                 }
-//             }
-//         }
-//     }
 
 //     pub fn write(&self, value: RuntimeValue) -> RuntimeResult<()> {
 //         match self {
@@ -239,13 +286,12 @@ impl RuntimeValue {
     pub fn struct_access(&self, identifier: &str) -> RuntimeResult<RuntimeValue> {
         match self {
             Self::Struct { definition, fields } => {
-                let value = fields
-                    .get(identifier)
-                    .map(|value| value.copy_value())
-                    .ok_or(RuntimeError::InvalidStructFieldAccess {
+                let value = fields.get(identifier).map(RuntimeValue::copy_value).ok_or(
+                    RuntimeError::InvalidStructFieldAccess {
                         field_name: identifier.to_string(),
                         struct_name: definition.identifier.clone(),
-                    });
+                    },
+                );
 
                 value
             }

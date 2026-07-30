@@ -1,6 +1,6 @@
 use crate::core::{
     lang::ast::{AssignmentTarget, BinaryOperator, DataType, Expression, Value},
-    runtime::{Runtime, RuntimeError, RuntimeResult, RuntimeValue},
+    runtime::{Runtime, RuntimeError, RuntimeResult, RuntimeValue, value::LValue},
 };
 
 impl Runtime {
@@ -44,97 +44,97 @@ impl Runtime {
         }
     }
 
-    // pub fn evaluate_lvalue(&mut self, target: &AssignmentTarget) -> RuntimeResult<LValue> {
-    //     match target {
-    //         AssignmentTarget::Identifier(identifier) => {
-    //             Ok(LValue::Variable(self.get_variable(identifier)?))
-    //         }
+    pub fn evaluate_lvalue(&mut self, target: &AssignmentTarget) -> RuntimeResult<LValue> {
+        match target {
+            AssignmentTarget::Identifier(identifier) => {
+                Ok(LValue::Reference(self.get_variable(identifier)?))
+            }
 
-    //         AssignmentTarget::Dereference(target) => {
-    //             let value = self.evaluate_lvalue(target)?.read()?;
+            AssignmentTarget::Dereference(target) => {
+                let value = self.evaluate_lvalue(target)?.read_value()?;
 
-    //             match value {
-    //                 RuntimeValue::Reference(reference) => Ok(LValue::Variable(reference)),
+                match value {
+                    RuntimeValue::Reference(reference) => Ok(LValue::Reference(reference)),
 
-    //                 other => Err(RuntimeError::ExpectedReference(
-    //                     other.data_type()?.to_string(),
-    //                 )),
-    //             }
-    //         }
+                    other => Err(RuntimeError::ExpectedReference(
+                        other.data_type()?.to_string(),
+                    )),
+                }
+            }
 
-    //         AssignmentTarget::ArrayAccess {
-    //             target,
-    //             index_expression,
-    //         } => {
-    //             let array = Box::new(self.evaluate_lvalue(target)?);
+            AssignmentTarget::ArrayAccess {
+                target,
+                index_expression,
+            } => {
+                let array = Box::new(self.evaluate_lvalue(target)?);
 
-    //             let index = match self.evaluate_expression(index_expression)? {
-    //                 RuntimeValue::U32(value) => value as usize,
+                let index = match self.evaluate_expression(index_expression)? {
+                    RuntimeValue::U32(value) => value as usize,
 
-    //                 RuntimeValue::S32(value) if value >= 0 => value as usize,
+                    RuntimeValue::S32(value) if value >= 0 => value as usize,
 
-    //                 other => {
-    //                     return Err(RuntimeError::InvalidArrayIndex(
-    //                         other.data_type()?.to_string(),
-    //                     ));
-    //                 }
-    //             };
+                    other => {
+                        return Err(RuntimeError::InvalidArrayIndex(
+                            other.data_type()?.to_string(),
+                        ));
+                    }
+                };
 
-    //             let value = array.read()?;
+                let value = array.read_value()?;
 
-    //             match value {
-    //                 RuntimeValue::Array { contents, .. } => {
-    //                     if index >= contents.len() {
-    //                         return Err(RuntimeError::ArrayIndexOutOfBounds {
-    //                             index,
-    //                             length: contents.len(),
-    //                         });
-    //                     }
-    //                 }
+                match value {
+                    RuntimeValue::Array { contents, .. } => {
+                        if index >= contents.len() {
+                            return Err(RuntimeError::ArrayIndexOutOfBounds {
+                                index,
+                                length: contents.len(),
+                            });
+                        }
+                    }
 
-    //                 other => {
-    //                     return Err(RuntimeError::CannotIndexNonArrayType(
-    //                         other.data_type()?.to_string(),
-    //                     ));
-    //                 }
-    //             }
+                    other => {
+                        return Err(RuntimeError::CannotIndexNonArrayType(
+                            other.data_type()?.to_string(),
+                        ));
+                    }
+                }
 
-    //             Ok(LValue::ArrayElement { array, index })
-    //         }
+                Ok(LValue::ArrayElement { array, index })
+            }
 
-    //         AssignmentTarget::FieldAccess {
-    //             target,
-    //             field_identifier,
-    //         } => {
-    //             let object = Box::new(self.evaluate_lvalue(target)?);
+            AssignmentTarget::FieldAccess {
+                target,
+                field_identifier,
+            } => {
+                let object = Box::new(self.evaluate_lvalue(target)?);
 
-    //             let value = object.read()?;
+                let value = object.read_value()?;
 
-    //             match value {
-    //                 RuntimeValue::Struct { definition, fields } => {
-    //                     if !fields.contains_key(field_identifier) {
-    //                         return Err(RuntimeError::InvalidStructFieldAccess {
-    //                             field_name: field_identifier.clone(),
-    //                             struct_name: definition.identifier.clone(),
-    //                         });
-    //                     }
-    //                 }
+                match value {
+                    RuntimeValue::Struct { definition, fields } => {
+                        if !fields.contains_key(field_identifier) {
+                            return Err(RuntimeError::InvalidStructFieldAccess {
+                                field_name: field_identifier.clone(),
+                                struct_name: definition.identifier.clone(),
+                            });
+                        }
+                    }
 
-    //                 other => {
-    //                     return Err(RuntimeError::InvalidStructFieldAccessTarget {
-    //                         field: field_identifier.clone(),
-    //                         data_type: other.data_type()?.to_string(),
-    //                     });
-    //                 }
-    //             }
+                    other => {
+                        return Err(RuntimeError::InvalidStructFieldAccessTarget {
+                            field: field_identifier.clone(),
+                            data_type: other.data_type()?.to_string(),
+                        });
+                    }
+                }
 
-    //             Ok(LValue::StructField {
-    //                 object,
-    //                 field: field_identifier.clone(),
-    //             })
-    //         }
-    //     }
-    // }
+                Ok(LValue::StructField {
+                    object,
+                    field: field_identifier.clone(),
+                })
+            }
+        }
+    }
 
     pub fn evaluate_expression(&mut self, expression: &Expression) -> RuntimeResult<RuntimeValue> {
         match expression {
@@ -166,59 +166,56 @@ impl Runtime {
                 expression,
                 field_identifier: field,
             } => {
-                todo!("fix struct field access")
+                // todo! again don't just copy values
+                let value = self.evaluate_expression(expression)?;
 
-                // let value = self.evaluate_expression(expression)?.resolve();
+                match value {
+                    RuntimeValue::Struct { definition, fields } => fields
+                        .get(field)
+                        .map(RuntimeValue::copy_value)
+                        .ok_or(RuntimeError::InvalidStructFieldAccess {
+                            field_name: field.clone(),
+                            struct_name: definition.identifier.clone(),
+                        }),
 
-                // match value {
-                //     RuntimeValue::Struct { definition, fields } => fields
-                //         .get(field)
-                //         .cloned()
-                //         .ok_or(RuntimeError::InvalidStructFieldAccess {
-                //             field_name: field.clone(),
-                //             struct_name: definition.identifier.clone(),
-                //         }),
-
-                //     _ => Err(RuntimeError::InvalidStructFieldAccessTarget {
-                //         field: field.clone(),
-                //         data_type: value.data_type()?.to_string(),
-                //     }),
-                // }
+                    _ => Err(RuntimeError::InvalidStructFieldAccessTarget {
+                        field: field.clone(),
+                        data_type: value.data_type()?.to_string(),
+                    }),
+                }
             }
 
             Expression::ArrayAccess {
                 expression,
                 index_expression,
             } => {
-                todo!("fix array access")
+                let index = match self.evaluate_expression(index_expression)? {
+                    RuntimeValue::U32(i) => i as usize,
+                    RuntimeValue::S32(i) if i >= 0 => i as usize,
+                    value => {
+                        return Err(RuntimeError::InvalidArrayIndex(
+                            value.data_type()?.to_string(),
+                        ));
+                    }
+                };
 
-                // let index = match self.evaluate_expression(index_expression)? {
-                //     RuntimeValue::U32(i) => i as usize,
-                //     RuntimeValue::S32(i) if i >= 0 => i as usize,
-                //     value => {
-                //         return Err(RuntimeError::InvalidArrayIndex(
-                //             value.data_type()?.to_string(),
-                //         ));
-                //     }
-                // };
+                // todo! don't mindlessly copy arrays like that
+                // use a reference instead
+                let value = self.evaluate_expression(expression)?;
 
-                // let value = self.evaluate_expression(expression)?.resolve();
+                match value {
+                    RuntimeValue::Array { contents, .. } => contents
+                        .get(index)
+                        .map(RuntimeValue::copy_value)
+                        .ok_or(RuntimeError::ArrayIndexOutOfBounds {
+                            index,
+                            length: contents.len(),
+                        }),
 
-                // match value {
-                //     RuntimeValue::Array { contents, .. } => {
-                //         contents
-                //             .get(index)
-                //             .cloned()
-                //             .ok_or(RuntimeError::ArrayIndexOutOfBounds {
-                //                 index,
-                //                 length: contents.len(),
-                //             })
-                //     }
-
-                //     _ => Err(RuntimeError::CannotIndexNonArrayType(
-                //         value.data_type()?.to_string(),
-                //     )),
-                // }
+                    _ => Err(RuntimeError::CannotIndexNonArrayType(
+                        value.data_type()?.to_string(),
+                    )),
+                }
             }
 
             Expression::Reference(expression) => match expression.as_ref() {

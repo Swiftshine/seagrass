@@ -270,17 +270,15 @@ impl Runtime {
         target: &AssignmentTarget,
         mut value: RuntimeValue,
     ) -> RuntimeResult<()> {
-        todo!()
+        let lvalue = self.evaluate_lvalue(target)?;
 
-        // let lvalue = self.evaluate_lvalue(target)?;
+        let existing_type = lvalue.read_value()?.data_type()?;
 
-        // let existing_type = lvalue.read()?.data_type()?;
+        value = self.coerce(value, &existing_type)?;
 
-        // value = self.coerce(value, &existing_type)?;
+        lvalue.write_value(value)?;
 
-        // lvalue.write(value)?;
-
-        // Ok(())
+        Ok(())
     }
 
     fn define_function(&mut self, func: &FunctionDefinition) -> StatementResult {
