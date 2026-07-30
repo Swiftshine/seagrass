@@ -1,13 +1,18 @@
 use crate::core::{
     lang::ast::{
         Assignment, AssignmentTarget, Block, ControlStatement, Expression, Program, Return,
-        Statement, Value,
+        Statement,
     },
     runtime::{
         ControlFlow, Runtime, RuntimeError, RuntimeResult, RuntimeValue, StatementResult,
         value::RuntimeReference,
     },
 };
+
+enum IterationMode {
+    Value,
+    Reference,
+}
 
 impl Runtime {
     pub fn execute(&mut self, program: &Program) -> RuntimeResult<()> {
@@ -103,22 +108,23 @@ impl Runtime {
         &mut self,
         iterator_identifier: &String,
         contents: &[RuntimeReference],
+        mode: IterationMode,
         block: &Block,
     ) -> StatementResult {
         for item in contents {
-            match {
-                self.push_scope();
-                self.assign_variable(
-                    iterator_identifier.clone(),
-                    RuntimeValue::Reference(item.clone()),
-                );
+            let value = match mode {
+                IterationMode::Value => item.borrow().copy_value(),
+                IterationMode::Reference => RuntimeValue::Reference(item.clone()),
+            };
 
-                let result = self.execute_block_contents(block);
+            self.push_scope();
+            self.assign_variable(iterator_identifier.clone(), value);
 
-                self.pop_scope();
+            let result = self.execute_block_contents(block);
 
-                result
-            }? {
+            self.pop_scope();
+
+            match result? {
                 ControlFlow::Continue => {}
                 ControlFlow::Break => break,
                 ControlFlow::Return(value) => return Ok(ControlFlow::Return(value)),
@@ -134,15 +140,6 @@ impl Runtime {
         iterable: &Expression,
         block: &Block,
     ) -> StatementResult {
-        let iterate =
-            |runtime: &mut Runtime, identifier: &String, value: RuntimeValue| -> StatementResult {
-                runtime.push_scope();
-                runtime.assign_variable(identifier.clone(), value);
-                let result = runtime.execute_block_contents(block);
-                runtime.pop_scope();
-                result
-            };
-
         match iterable {
             Expression::Range { start, end } => {
                 let start = self.evaluate_expression_to_value(start)?;
@@ -151,6 +148,7 @@ impl Runtime {
                 let start = match start {
                     RuntimeValue::U32(v) => v,
                     RuntimeValue::S32(v) if v >= 0 => v as u32,
+
                     other => {
                         return Err(RuntimeError::ExpectedIntegerForRange(
                             other.data_type()?.to_string(),
@@ -161,6 +159,7 @@ impl Runtime {
                 let end = match end {
                     RuntimeValue::U32(v) => v,
                     RuntimeValue::S32(v) if v >= 0 => v as u32,
+
                     other => {
                         return Err(RuntimeError::ExpectedIntegerForRange(
                             other.data_type()?.to_string(),
@@ -169,7 +168,15 @@ impl Runtime {
                 };
 
                 for i in start..end {
-                    match iterate(self, iterator_identifier, RuntimeValue::U32(i))? {
+                    self.push_scope();
+
+                    self.assign_variable(iterator_identifier.clone(), RuntimeValue::U32(i));
+
+                    let result = self.execute_block_contents(block);
+
+                    self.pop_scope();
+
+                    match result? {
                         ControlFlow::Continue => {}
                         ControlFlow::Break => break,
                         ControlFlow::Return(value) => {
@@ -182,10 +189,18 @@ impl Runtime {
             }
 
             Expression::ArrayInitialization(init) => {
-                for item in &init.initialized_fields {
-                    let value = self.evaluate_expression_to_value(item)?;
+                for expression in &init.initialized_fields {
+                    let value = self.evaluate_expression_to_value(expression)?;
 
-                    match iterate(self, iterator_identifier, value)? {
+                    self.push_scope();
+
+                    self.assign_variable(iterator_identifier.clone(), value);
+
+                    let result = self.execute_block_contents(block);
+
+                    self.pop_scope();
+
+                    match result? {
                         ControlFlow::Continue => {}
                         ControlFlow::Break => break,
                         ControlFlow::Return(value) => {
@@ -193,75 +208,33 @@ impl Runtime {
                         }
                     }
                 }
+
                 Ok(ControlFlow::Continue)
             }
 
-            Expression::Value(value) => match value {
-                Value::Identifier(iterable_identifier) => {
-                    let var = self.get_variable(iterable_identifier)?;
-                    let value = var.borrow().copy_value();
-
-                    match value {
-                        RuntimeValue::Array { contents, .. } => {
-                            for item in &contents {
-                                match iterate(
-                                    self,
-                                    iterator_identifier,
-                                    item.borrow().copy_value(),
-                                )? {
-                                    ControlFlow::Continue => {}
-                                    ControlFlow::Break => break,
-                                    ControlFlow::Return(value) => {
-                                        return Ok(ControlFlow::Return(value));
-                                    }
-                                }
-                            }
-                        }
-
-                        RuntimeValue::Iterator { contents, .. } => {
-                            for item in &contents {
-                                match iterate(
-                                    self,
-                                    iterator_identifier,
-                                    RuntimeValue::Reference(item.clone()),
-                                )? {
-                                    ControlFlow::Continue => {}
-                                    ControlFlow::Break => break,
-                                    ControlFlow::Return(value) => {
-                                        return Ok(ControlFlow::Return(value));
-                                    }
-                                }
-                            }
-                        }
-
-                        other => {
-                            return Err(RuntimeError::CannotIterateOnType(
-                                other.data_type()?.to_string(),
-                            ));
-                        }
-                    }
-
-                    Ok(ControlFlow::Continue)
-                }
-
-                _ => unreachable!("{:?}", value),
-            },
-
-            Expression::MethodCall { .. } => {
+            _ => {
                 let value = self.evaluate_expression_to_value(iterable)?;
 
                 match value {
-                    RuntimeValue::Iterator { contents, .. } => {
-                        self.execute_iteration(iterator_identifier, &contents, block)
-                    }
+                    RuntimeValue::Array { contents, .. } => self.execute_iteration(
+                        iterator_identifier,
+                        &contents,
+                        IterationMode::Value,
+                        block,
+                    ),
+
+                    RuntimeValue::Iterator { contents, .. } => self.execute_iteration(
+                        iterator_identifier,
+                        &contents,
+                        IterationMode::Reference,
+                        block,
+                    ),
 
                     other => Err(RuntimeError::CannotIterateOnType(
                         other.data_type()?.to_string(),
                     )),
                 }
             }
-
-            _ => todo!("cannot iterate on {:?}", iterable),
         }
     }
 
