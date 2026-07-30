@@ -1,11 +1,14 @@
 use crate::core::{
     lang::ast::{AssignmentTarget, BinaryOperator, DataType, Expression, Value},
-    runtime::{Runtime, RuntimeError, RuntimeResult, RuntimeValue, value::LValue},
+    runtime::{
+        Runtime, RuntimeError, RuntimeResult, RuntimeValue,
+        value::{LValue, RuntimeReference},
+    },
 };
 
 impl Runtime {
     pub fn evaluate_boolean_expression(&mut self, expression: &Expression) -> RuntimeResult<bool> {
-        let value = self.evaluate_expression(expression)?;
+        let value = self.evaluate_expression_to_value(expression)?;
 
         if let RuntimeValue::Bool(boolean) = value {
             Ok(boolean)
@@ -68,7 +71,7 @@ impl Runtime {
             } => {
                 let array = Box::new(self.evaluate_lvalue(target)?);
 
-                let index = match self.evaluate_expression(index_expression)? {
+                let index = match self.evaluate_expression_to_value(index_expression)? {
                     RuntimeValue::U32(value) => value as usize,
 
                     RuntimeValue::S32(value) if value >= 0 => value as usize,
@@ -136,14 +139,17 @@ impl Runtime {
         }
     }
 
-    pub fn evaluate_expression(&mut self, expression: &Expression) -> RuntimeResult<RuntimeValue> {
+    pub fn evaluate_expression_to_value(
+        &mut self,
+        expression: &Expression,
+    ) -> RuntimeResult<RuntimeValue> {
         match expression {
             Expression::Value(value) => self.resolve_ast_value(value),
             Expression::FunctionCall(call) => {
                 let args = call
                     .arguments
                     .iter()
-                    .map(|expr| self.evaluate_expression(expr))
+                    .map(|expr| self.evaluate_expression_to_value(expr))
                     .collect::<RuntimeResult<Vec<_>>>()?;
 
                 let generics = &call.generics;
@@ -152,8 +158,8 @@ impl Runtime {
             }
 
             Expression::Binary { lhs, rhs, operator } => {
-                let lhs = self.evaluate_expression(lhs)?;
-                let rhs = self.evaluate_expression(rhs)?;
+                let lhs = self.evaluate_expression_to_value(lhs)?;
+                let rhs = self.evaluate_expression_to_value(rhs)?;
 
                 self.evaluate_binary(*operator, lhs, rhs)
             }
@@ -167,7 +173,7 @@ impl Runtime {
                 field_identifier: field,
             } => {
                 // todo! again don't just copy values
-                let value = self.evaluate_expression(expression)?;
+                let value = self.evaluate_expression_to_value(expression)?;
 
                 match value {
                     RuntimeValue::Struct { definition, fields } => fields
@@ -189,47 +195,17 @@ impl Runtime {
                 expression,
                 index_expression,
             } => {
-                let index = match self.evaluate_expression(index_expression)? {
-                    RuntimeValue::U32(i) => i as usize,
-                    RuntimeValue::S32(i) if i >= 0 => i as usize,
-                    value => {
-                        return Err(RuntimeError::InvalidArrayIndex(
-                            value.data_type()?.to_string(),
-                        ));
-                    }
-                };
-
-                // todo! don't mindlessly copy arrays like that
-                // use a reference instead
-                let value = self.evaluate_expression(expression)?;
-
-                match value {
-                    RuntimeValue::Array { contents, .. } => contents
-                        .get(index)
-                        .map(RuntimeValue::copy_value)
-                        .ok_or(RuntimeError::ArrayIndexOutOfBounds {
-                            index,
-                            length: contents.len(),
-                        }),
-
-                    _ => Err(RuntimeError::CannotIndexNonArrayType(
-                        value.data_type()?.to_string(),
-                    )),
-                }
+                let reference = self.evaluate_expression_to_reference(expression)?;
+                Ok(reference.borrow().copy_value())
             }
 
-            Expression::Reference(expression) => match expression.as_ref() {
-                Expression::Value(Value::Identifier(identifier)) => {
-                    let variable = self.get_variable(identifier)?;
-
-                    Ok(RuntimeValue::Reference(variable))
-                }
-
-                _ => Err(RuntimeError::InvalidReferenceTarget),
-            },
+            Expression::Reference(expression) => {
+                let reference = self.evaluate_expression_to_reference(expression)?;
+                Ok(RuntimeValue::Reference(reference))
+            }
 
             Expression::Dereference(expression) => {
-                let value = self.evaluate_expression(expression)?;
+                let value = self.evaluate_expression_to_value(expression)?;
                 value.dereference()
             }
 
@@ -252,7 +228,7 @@ impl Runtime {
                     DataType::Array { .. } => {
                         let args = arguments
                             .iter()
-                            .flat_map(|expr| self.evaluate_expression(expr))
+                            .flat_map(|expr| self.evaluate_expression_to_value(expr))
                             .collect();
 
                         self.invoke_method_for_array(
@@ -265,7 +241,7 @@ impl Runtime {
                     DataType::UserDefined(_) => {
                         let args = arguments
                             .iter()
-                            .flat_map(|expr| self.evaluate_expression(expr))
+                            .flat_map(|expr| self.evaluate_expression_to_value(expr))
                             .collect();
 
                         self.invoke_method_for_struct(
@@ -283,9 +259,86 @@ impl Runtime {
         }
     }
 
+    pub fn evaluate_expression_to_reference(
+        &mut self,
+        expression: &Expression,
+    ) -> RuntimeResult<RuntimeReference> {
+        match expression {
+            Expression::Value(Value::Identifier(identifier)) => self.get_variable(identifier),
+
+            Expression::ArrayAccess {
+                expression,
+                index_expression,
+            } => {
+                let index = match self.evaluate_expression_to_value(index_expression)? {
+                    RuntimeValue::U32(i) => i as usize,
+                    RuntimeValue::S32(i) if i >= 0 => i as usize,
+                    value => {
+                        return Err(RuntimeError::InvalidArrayIndex(
+                            value.data_type()?.to_string(),
+                        ));
+                    }
+                };
+
+                let array = self.evaluate_expression_to_reference(expression)?;
+
+                let borrowed = array.borrow();
+
+                match &*borrowed {
+                    RuntimeValue::Array { contents, .. } => {
+                        contents
+                            .get(index)
+                            .cloned()
+                            .ok_or(RuntimeError::ArrayIndexOutOfBounds {
+                                index,
+                                length: contents.len(),
+                            })
+                    }
+
+                    other => Err(RuntimeError::CannotIndexNonArrayType(
+                        other.data_type()?.to_string(),
+                    )),
+                }
+            }
+
+            Expression::StructFieldAccess {
+                expression,
+                field_identifier,
+            } => {
+                todo!()
+
+                // let s = self.evaluate_expression_to_reference(expression)?;
+
+                // let borrowed = s.borrow();
+
+                // match &*borrowed {
+                //     RuntimeValue::Struct { definition, fields } => fields
+                //         .get(field_identifier)
+                //         .cloned()
+                //         .ok_or(RuntimeError::InvalidStructFieldAccess {
+                //             field_name: field_identifier.clone(),
+                //             struct_name: definition.identifier.clone(),
+                //         }),
+
+                //     other => Err(RuntimeError::InvalidStructFieldAccessTarget {
+                //         field: field_identifier.clone(),
+                //         data_type: other.data_type()?.to_string(),
+                //     }),
+                // }
+            }
+
+            Expression::Dereference(expr) => {
+                let value = self.evaluate_expression_to_value(expr)?;
+                value.expect_reference()
+            }
+
+            _ => Err(RuntimeError::InvalidReferenceTarget),
+        }
+    }
+
     fn evaluate_method_receiver(&mut self, expression: &Expression) -> RuntimeResult<RuntimeValue> {
         match expression {
-            Expression::Reference(_) => self.evaluate_expression(expression),
+            Expression::Reference(_) => self.evaluate_expression_to_value(expression),
 
             Expression::Value(Value::Identifier(name)) => {
                 Ok(RuntimeValue::Reference(self.get_variable(name)?))

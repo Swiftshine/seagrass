@@ -55,7 +55,7 @@ impl Runtime {
             Statement::Assignment(assignment) => self.execute_assignment(assignment),
 
             Statement::Expression(expression) => {
-                self.evaluate_expression(expression)?;
+                self.evaluate_expression_to_value(expression)?;
                 Ok(ControlFlow::Continue)
             }
 
@@ -113,14 +113,14 @@ impl Runtime {
 
         match iterable {
             Expression::Range { start, end } => {
-                let start = self.evaluate_expression(start)?;
-                let end = self.evaluate_expression(end)?;
+                let start = self.evaluate_expression_to_value(start)?;
+                let end = self.evaluate_expression_to_value(end)?;
 
                 let start = match start {
                     RuntimeValue::U32(v) => v,
                     RuntimeValue::S32(v) if v >= 0 => v as u32,
                     other => {
-                        return Err(RuntimeError::ExpectedInteger(
+                        return Err(RuntimeError::ExpectedIntegerForRange(
                             other.data_type()?.to_string(),
                         ));
                     }
@@ -130,7 +130,7 @@ impl Runtime {
                     RuntimeValue::U32(v) => v,
                     RuntimeValue::S32(v) if v >= 0 => v as u32,
                     other => {
-                        return Err(RuntimeError::ExpectedInteger(
+                        return Err(RuntimeError::ExpectedIntegerForRange(
                             other.data_type()?.to_string(),
                         ));
                     }
@@ -151,7 +151,7 @@ impl Runtime {
 
             Expression::ArrayInitialization(init) => {
                 for item in &init.initialized_fields {
-                    let value = self.evaluate_expression(item)?;
+                    let value = self.evaluate_expression_to_value(item)?;
 
                     match iterate(self, iterator_identifier, value)? {
                         ControlFlow::Continue => {}
@@ -172,7 +172,11 @@ impl Runtime {
                     match value {
                         RuntimeValue::Array { contents, .. } => {
                             for item in &contents {
-                                match iterate(self, iterator_identifier, item.copy_value())? {
+                                match iterate(
+                                    self,
+                                    iterator_identifier,
+                                    item.borrow().copy_value(),
+                                )? {
                                     ControlFlow::Continue => {}
                                     ControlFlow::Break => break,
                                     ControlFlow::Return(value) => {
@@ -255,7 +259,7 @@ impl Runtime {
     }
 
     fn execute_assignment(&mut self, assignment: &Assignment) -> StatementResult {
-        let mut value = self.evaluate_expression(&assignment.expression)?;
+        let mut value = self.evaluate_expression_to_value(&assignment.expression)?;
 
         if let Some(expected_type) = &assignment.data_type {
             value = self.apply_type_annotation(value, expected_type)?;
@@ -277,7 +281,7 @@ impl Runtime {
     }
 
     fn execute_return(&mut self, ret: &Return) -> StatementResult {
-        let value = self.evaluate_expression(&ret.expression)?;
+        let value = self.evaluate_expression_to_value(&ret.expression)?;
         Ok(ControlFlow::Return(value))
     }
 

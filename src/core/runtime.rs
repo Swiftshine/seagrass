@@ -62,6 +62,8 @@ pub enum RuntimeError {
     #[error("Array index {0} invalid")]
     InvalidArrayIndex(String),
     #[error("Expected integral type for ranges, found '{0}'")]
+    ExpectedIntegerForRange(String),
+    #[error("Expected integral type, found '{0}'")]
     ExpectedInteger(String),
 
     // Mismatches

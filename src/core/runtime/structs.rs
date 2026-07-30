@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::core::lang::ast::{ArrayInitialization, StructFieldDefinition, StructMember};
 
+use crate::core::runtime::value::RuntimeReference;
 use crate::core::{
     lang::ast::{
         Attribute, DataType, Expression, MethodDefinition, StructDefinition, StructImpl,
@@ -338,7 +339,7 @@ impl Runtime {
 
             RuntimeValue::Array { contents, .. } => {
                 for item in contents {
-                    self.serialize_value(item, output, byte_order)?;
+                    self.serialize_value(&item.borrow(), output, byte_order)?;
                 }
             }
 
@@ -393,7 +394,9 @@ impl Runtime {
             DataType::Reference(_) => Err(RuntimeError::CannotDefaultInitializeReference),
 
             DataType::Array { data_type, count } => {
-                let contents = vec![self.default_value(data_type)?; *count].into_boxed_slice();
+                let contents =
+                    vec![self.default_value(data_type)?.into_runtime_reference(); *count]
+                        .into_boxed_slice();
 
                 Ok(RuntimeValue::Array {
                     inner_data_type: *data_type.clone(),
@@ -428,18 +431,19 @@ impl Runtime {
             return Err(RuntimeError::CannotInferEmptyArrayType);
         }
 
-        let contents: Box<[RuntimeValue]> = init
+        let contents: Box<[RuntimeReference]> = init
             .initialized_fields
             .iter()
-            .flat_map(|expr| self.evaluate_expression(expr))
+            .flat_map(|expr| self.evaluate_expression_to_value(expr))
+            .map(RuntimeValue::into_runtime_reference)
             .collect();
 
         assert_eq!(contents.len(), init.initialized_fields.len());
 
-        let data_type = contents[0].data_type()?;
+        let data_type = contents[0].borrow().data_type()?;
 
         for item in &contents {
-            assert_eq!(item.data_type()?, data_type);
+            assert_eq!(item.borrow().data_type()?, data_type);
         }
 
         Ok(RuntimeValue::Array {
@@ -462,7 +466,7 @@ impl Runtime {
                 .iter()
                 .find(|f| f.identifier == field_definition.identifier)
             {
-                let value = self.evaluate_expression(&initialized_field.expression)?;
+                let value = self.evaluate_expression_to_value(&initialized_field.expression)?;
 
                 let value = match self.apply_type_annotation(value, &field_definition.data_type) {
                     Ok(value) => value,
@@ -562,8 +566,9 @@ impl Runtime {
             DataType::Array { data_type, count } => {
                 let count = *count;
 
-                let contents: Box<[RuntimeValue]> = (0..count)
+                let contents: Box<[RuntimeReference]> = (0..count)
                     .flat_map(|_| self.deserialize_value(data_type, bytes, offset, byte_order))
+                    .map(RuntimeValue::into_runtime_reference)
                     .collect();
 
                 Ok(RuntimeValue::Array {

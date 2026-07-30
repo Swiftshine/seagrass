@@ -31,14 +31,14 @@ impl LValue {
                 let array_runtime_value = array.read_value()?;
 
                 if let RuntimeValue::Array { contents, .. } = array_runtime_value {
-                    let value = contents.get(*index).map(RuntimeValue::copy_value).ok_or(
+                    let reference = contents.get(*index).cloned().ok_or(
                         RuntimeError::ArrayIndexOutOfBounds {
                             index: *index,
                             length: contents.len(),
                         },
-                    );
+                    )?;
 
-                    value
+                    Ok(reference.borrow().copy_value())
                 } else {
                     Err(RuntimeError::CannotIndexNonArrayType(
                         array_runtime_value.data_type()?.to_string(),
@@ -79,7 +79,7 @@ impl LValue {
                 let array_reference = array.get_reference();
 
                 if let RuntimeValue::Array { contents, .. } = &mut *array_reference.borrow_mut() {
-                    contents[*index] = value;
+                    *contents[*index].borrow_mut() = value;
                     Ok(())
                 } else {
                     Err(RuntimeError::CannotIndexNonArrayType(
@@ -216,12 +216,12 @@ pub enum RuntimeValue {
     Bool(bool),
     Struct {
         definition: Rc<StructDefinition>,
-        fields: HashMap<String, RuntimeValue>,
+        fields: HashMap<String, RuntimeValue>, // todo! make this a RuntimeReference too
     },
     Reference(RuntimeReference),
     Array {
         inner_data_type: DataType,
-        contents: Box<[RuntimeValue]>,
+        contents: Box<[RuntimeReference]>,
     },
 }
 
@@ -252,7 +252,7 @@ impl RuntimeValue {
                 inner_data_type: inner_data_type.clone(),
                 contents: contents
                     .iter()
-                    .map(Self::copy_value)
+                    .cloned()
                     .collect::<Vec<_>>()
                     .into_boxed_slice(),
             },
@@ -377,10 +377,16 @@ impl Runtime {
                 (RuntimeValue::Array { contents, .. }, DataType::Array { data_type, count }) => {
                     let mut vec = contents
                         .into_iter()
-                        .flat_map(|value| self.coerce(value, data_type))
-                        .collect::<Vec<RuntimeValue>>();
+                        .flat_map(|reference| {
+                            self.coerce(reference.borrow().copy_value(), data_type)
+                        })
+                        .map(RuntimeValue::into_runtime_reference)
+                        .collect::<Vec<RuntimeReference>>();
 
-                    vec.resize(*count, self.default_value(data_type)?);
+                    vec.resize(
+                        *count,
+                        self.default_value(data_type)?.into_runtime_reference(),
+                    );
                     let contents = vec.into_boxed_slice();
 
                     Ok(RuntimeValue::Array {
