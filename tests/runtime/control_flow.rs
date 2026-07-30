@@ -82,7 +82,7 @@ pub fn ranged_for_statements() -> Result<()> {
         let val = 0;
 
         for i in 0..10 {
-            val = val + i;
+            val = val + (i as s32);
         }
     ";
 

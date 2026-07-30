@@ -95,6 +95,8 @@ pub enum RuntimeError {
     CannotInvokeMethodOnType(String),
     #[error("Cannot iterate on type '{0}'")]
     CannotIterateOnType(String),
+    #[error("Cannot cast a '{0}' to a '{1}'")]
+    InvalidCast(String, String),
 
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]

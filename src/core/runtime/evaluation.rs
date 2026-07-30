@@ -277,6 +277,13 @@ impl Runtime {
                 }
             }
 
+            Expression::TypeCast {
+                expression,
+                target_type,
+            } => {
+                let value = self.evaluate_expression_to_value(expression)?;
+                value.cast_to(target_type)
+            }
             _ => unreachable!("{:?}", expression),
         }
     }

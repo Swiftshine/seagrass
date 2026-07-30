@@ -89,6 +89,10 @@ pub enum Expression {
         start: Box<Expression>,
         end: Box<Expression>,
     },
+    TypeCast {
+        expression: Box<Expression>,
+        target_type: DataType,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -808,12 +812,34 @@ fn build_addition(pair: Pair<Rule>) -> Result<Expression> {
 fn build_multiplication(pair: Pair<Rule>) -> Result<Expression> {
     assert_eq!(pair.as_rule(), Rule::Multiplication);
 
-    build_binary_expression(pair, build_unary, |rule| match rule {
+    build_binary_expression(pair, build_type_cast, |rule| match rule {
         Rule::Multiply => BinaryOperator::Multiply,
         Rule::Slash => BinaryOperator::Divide,
         Rule::Percent => BinaryOperator::Modulo,
         _ => unreachable!("{:?}", rule),
     })
+}
+
+fn build_type_cast(pair: Pair<Rule>) -> Result<Expression> {
+    assert_eq!(pair.as_rule(), Rule::TypeCast);
+
+    let mut inner = pair.into_inner();
+
+    let mut expression = build_unary(inner.next().unwrap())?;
+
+    // KeywordAs
+    inner.next();
+
+    for pair in inner {
+        let data_type = build_data_type(pair)?;
+
+        expression = Expression::TypeCast {
+            expression: Box::new(expression),
+            target_type: data_type,
+        };
+    }
+
+    Ok(expression)
 }
 
 fn build_unary(pair: Pair<Rule>) -> Result<Expression> {

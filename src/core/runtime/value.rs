@@ -185,6 +185,62 @@ impl RuntimeValue {
         Rc::new(RefCell::new(self))
     }
 
+    pub fn cast_to(self, target: &DataType) -> RuntimeResult<Self> {
+        match target {
+            DataType::S8
+            | DataType::U8
+            | DataType::S16
+            | DataType::U16
+            | DataType::S32
+            | DataType::U32
+            | DataType::Usize => self.cast_numeric(target),
+
+            _ => Err(RuntimeError::InvalidCast(
+                self.data_type()?.to_string(),
+                target.to_string(),
+            )),
+        }
+    }
+
+    fn cast_numeric(self, target: &DataType) -> RuntimeResult<Self> {
+        let data_type = self.data_type()?;
+
+        let value = match self {
+            Self::S8(v) => v as i128,
+            Self::U8(v) => v as i128,
+            Self::S16(v) => v as i128,
+            Self::U16(v) => v as i128,
+            Self::S32(v) => v as i128,
+            Self::U32(v) => v as i128,
+            Self::Usize(v) => v as i128,
+
+            value => {
+                return Err(RuntimeError::InvalidCast(
+                    value.data_type()?.to_string(),
+                    target.to_string(),
+                ));
+            }
+        };
+
+        match target {
+            DataType::S8 => Ok(Self::S8(value as i8)),
+            DataType::U8 => Ok(Self::U8(value as u8)),
+
+            DataType::S16 => Ok(Self::S16(value as i16)),
+            DataType::U16 => Ok(Self::U16(value as u16)),
+
+            DataType::S32 => Ok(Self::S32(value as i32)),
+            DataType::U32 => Ok(Self::U32(value as u32)),
+
+            DataType::Usize => Ok(Self::Usize(value as usize)),
+
+            _ => Err(RuntimeError::InvalidCast(
+                data_type.to_string(),
+                target.to_string(),
+            )),
+        }
+    }
+
     pub fn copy_value(&self) -> Self {
         match self {
             Self::None => Self::None,

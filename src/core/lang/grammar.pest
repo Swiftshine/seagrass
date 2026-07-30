@@ -26,7 +26,11 @@ Keyword = {
     KeywordFalse |
     KeywordWhile |
     KeywordBreak |
-    KeywordSelf
+    KeywordSelf |
+    KeywordPad |
+    KeywordFor |
+    KeywordIn |
+    KeywordAs
 }
 
 KeywordFn = @{ "fn" ~ KeywordBoundary }
@@ -45,6 +49,7 @@ KeywordSelf = @{ "self" ~ KeywordBoundary }
 KeywordPad = @{ "pad" ~ KeywordBoundary }
 KeywordFor = @{ "for" ~ KeywordBoundary }
 KeywordIn = @{ "in" ~ KeywordBoundary }
+KeywordAs = @{ "as" ~ KeywordBoundary }
 
 // Execution
 Block = {
@@ -134,7 +139,7 @@ QualifiedIdentifier = {
 }
 
 BuiltinDataType = {
-    "s8" | "u8" | "s16" | "u16" | "s32" | "u32" | "string" | "bool"
+    "s8" | "u8" | "s16" | "u16" | "s32" | "u32" | "string" | "bool" | "usize"
 }
 
 DataType = {
@@ -341,7 +346,7 @@ Addition = {
 }
 
 Multiplication = {
-    Unary ~ (MulOp ~ Unary)*
+    TypeCast ~ (MulOp ~ TypeCast)*
 }
 
 MulOp = _{
@@ -350,6 +355,10 @@ MulOp = _{
 
 AddOp = _{
     Plus | Minus
+}
+
+TypeCast = {
+    Unary ~ (KeywordAs ~ DataType)*
 }
 
 Unary = {
