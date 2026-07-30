@@ -9,7 +9,7 @@ vectors
 ```rs
 struct MyStruct {
     count: u32,
-    #[length(count)]
+    #[num_elements(count)]
     things: [u32]
 }
 ```
