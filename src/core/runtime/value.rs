@@ -137,11 +137,11 @@ impl DataType {
 
             (
                 Self::Array {
-                    data_type: self_type,
+                    inner_data_type: self_type,
                     count: self_count,
                 },
                 Self::Array {
-                    data_type: into_type,
+                    inner_data_type: into_type,
                     count: into_count,
                 },
             ) if self_type.can_be_coerced_into(into_type) => into_count >= self_count,
@@ -297,7 +297,7 @@ impl RuntimeValue {
                 inner_data_type: data_type,
                 contents,
             } => Ok(DataType::Array {
-                data_type: Box::new(data_type.clone()),
+                inner_data_type: Box::new(data_type.clone()),
                 count: Some(contents.len()),
             }),
 
@@ -413,7 +413,13 @@ impl Runtime {
                 (RuntimeValue::U16(v), DataType::U32) => Ok(RuntimeValue::U32(v as u32)),
                 (RuntimeValue::U16(v), DataType::S32) => Ok(RuntimeValue::S32(v as i32)),
 
-                (RuntimeValue::Array { contents, .. }, DataType::Array { data_type, count }) => {
+                (
+                    RuntimeValue::Array { contents, .. },
+                    DataType::Array {
+                        inner_data_type: data_type,
+                        count,
+                    },
+                ) => {
                     let mut vec = contents
                         .into_iter()
                         .flat_map(|reference| {

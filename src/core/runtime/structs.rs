@@ -86,7 +86,10 @@ impl Runtime {
 
             DataType::Iterator(_) => Err(RuntimeError::CannotDefaultInitializeIterator),
 
-            DataType::Array { data_type, count } => {
+            DataType::Array {
+                inner_data_type: data_type,
+                count,
+            } => {
                 let contents =
                     vec![self.default_value(data_type)?.into_runtime_reference(); count.unwrap()]
                         .into_boxed_slice();

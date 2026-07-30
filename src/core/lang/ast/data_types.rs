@@ -90,7 +90,7 @@ fn build_array_type(pair: Pair<Rule>) -> Result<DataType> {
     };
 
     Ok(DataType::Array {
-        data_type: Box::new(data_type),
+        inner_data_type: Box::new(data_type),
         count,
     })
 }

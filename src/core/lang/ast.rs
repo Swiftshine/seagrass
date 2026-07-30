@@ -219,7 +219,7 @@ pub enum DataType {
     Iterator(Box<DataType>),
     UserDefined(String),
     Array {
-        data_type: Box<DataType>,
+        inner_data_type: Box<DataType>,
         count: Option<usize>,
     },
 }
@@ -238,7 +238,10 @@ impl std::fmt::Display for DataType {
             Self::Usize => write!(f, "usize"),
             Self::Reference(data_type) => write!(f, "&{}", data_type),
             Self::UserDefined(user_defined_type) => write!(f, "{user_defined_type}"),
-            Self::Array { data_type, count } => {
+            Self::Array {
+                inner_data_type: data_type,
+                count,
+            } => {
                 if let Some(count) = count {
                     write!(f, "[{};{}]", data_type, count)
                 } else {

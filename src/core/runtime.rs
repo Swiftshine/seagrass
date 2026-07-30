@@ -164,6 +164,12 @@ pub enum RuntimeError {
     UncountedArray,
     #[error("Failed to perform I/O operation: {0}")]
     Io(#[from] std::io::Error),
+
+    // Attribute errors
+    #[error(
+        "Struct field '{0}' not read before trying to use the \"counted_by\" attribute or is non-numeric"
+    )]
+    CountedByFail(String),
 }
 
 impl RuntimeError {

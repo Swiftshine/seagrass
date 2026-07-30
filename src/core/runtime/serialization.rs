@@ -174,27 +174,52 @@ impl StructFieldDefinition {
         }
     }
 
-    pub fn find_element_count_for_counted_array(&self, runtime: &Runtime) -> RuntimeResult<usize> {
+    fn find_element_count_for_counted_array(
+        &self,
+        ctx: &SerializationContext,
+    ) -> RuntimeResult<usize> {
         let attribute = self.get_attribute("counted_by")?;
 
         attribute.assert_argument_count(1)?;
 
         match &attribute.arguments[0] {
             Expression::Value(value) => {
-                let value = runtime.resolve_ast_value(value)?;
+                match value {
+                    Value::Identifier(ident) => {
+                        // something within this struct
+                        if let Some(value) = ctx.already_read_fields.get(ident)
+                            && value.data_type()?.is_numeric()
+                        {
+                            let value = value.copy_value().cast_to(&DataType::Usize)?;
 
-                if value.data_type()?.is_numeric() {
-                    let value_as_usize = value.cast_to(&DataType::Usize)?;
+                            if let RuntimeValue::Usize(size) = value {
+                                Ok(size)
+                            } else {
+                                unreachable!("expected it to resolve to a usize")
+                            }
+                        } else {
+                            Err(RuntimeError::CountedByFail(ident.clone()))
+                        }
+                    }
 
-                    dbg!(value_as_usize);
+                    _ => {
+                        // for constants
+                        let value = ctx.runtime.resolve_ast_value(value)?;
 
-                    todo!()
-                } else {
-                    Err(RuntimeError::InvalidAttributeArgument {
-                        attribute: "counted_by".to_string(),
-                        expected: "positive integer".to_string(),
-                        found: format!("{:?}", value.data_type()?),
-                    })
+                        let data_type = value.data_type()?;
+
+                        if data_type.is_numeric()
+                            && let RuntimeValue::Usize(size) = value.cast_to(&DataType::Usize)?
+                        {
+                            Ok(size)
+                        } else {
+                            Err(RuntimeError::InvalidAttributeArgument {
+                                attribute: "counted_by".to_string(),
+                                expected: "positive integer".to_string(),
+                                found: format!("{:?}", data_type),
+                            })
+                        }
+                    }
                 }
             }
             other => Err(RuntimeError::InvalidAttributeArgument {
@@ -276,9 +301,10 @@ impl Runtime {
                 Err(RuntimeError::NonPODType(data_type.to_string()))
             }
 
-            DataType::Array { data_type, .. } => {
-                self.validate_pod_for_data_type(data_type, exceptions)
-            }
+            DataType::Array {
+                inner_data_type: data_type,
+                ..
+            } => self.validate_pod_for_data_type(data_type, exceptions),
 
             DataType::UserDefined(identifier) => {
                 let struct_field_definition = self.get_struct_definition(identifier)?;
@@ -495,7 +521,10 @@ impl Runtime {
                 Ok(RuntimeValue::String(string))
             }
 
-            DataType::Array { data_type, count } => {
+            DataType::Array {
+                inner_data_type: data_type,
+                count,
+            } => {
                 if let Some(count) = count {
                     // regular array
                     let count = *count;
@@ -554,6 +583,10 @@ impl Runtime {
                                 }
                             }
 
+                            // some values should or shouldn't be added based on need
+                            // we do need numeric values. we DON'T need strings or arrays
+                            let mut should_add_to_ctx = false;
+
                             let value = if matches!(field.data_type, DataType::String) {
                                 match field.string_serialization()? {
                                     Some(StringSerialization::Ascii) => {
@@ -564,9 +597,27 @@ impl Runtime {
                                         self.deserialize_value(&field.data_type, byte_order, ctx)?
                                     }
                                 }
+                            } else if let DataType::Array {
+                                inner_data_type, ..
+                            } = &field.data_type
+                                && let Ok(element_count) =
+                                    field.find_element_count_for_counted_array(ctx)
+                            {
+                                let new_array_type = DataType::Array {
+                                    inner_data_type: inner_data_type.clone(),
+                                    count: Some(element_count),
+                                };
+
+                                self.deserialize_value(&new_array_type, byte_order, ctx)?
                             } else {
+                                should_add_to_ctx = true;
                                 self.deserialize_value(&field.data_type, byte_order, ctx)?
                             };
+
+                            if should_add_to_ctx {
+                                ctx.already_read_fields
+                                    .insert(field.identifier.clone(), value.copy_value());
+                            }
 
                             fields.insert(field.identifier.clone(), value.into_runtime_reference());
                         }
