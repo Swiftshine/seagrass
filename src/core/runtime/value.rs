@@ -218,7 +218,7 @@ impl RuntimeValue {
                 Ok(value.borrow_mut().copy_value())
             }
 
-            Self::Reference(_) => self.dereference(),
+            Self::Reference(reference) => reference.borrow().struct_access(identifier),
 
             _ => Err(RuntimeError::InvalidStructFieldAccessTarget {
                 field: identifier.to_string(),
