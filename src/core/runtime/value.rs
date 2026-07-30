@@ -50,14 +50,15 @@ impl LValue {
                 let struct_runtime_value = object.read_value()?;
 
                 if let RuntimeValue::Struct { definition, fields } = struct_runtime_value {
-                    let value = fields.get(field).map(RuntimeValue::copy_value).ok_or(
-                        RuntimeError::InvalidStructFieldAccess {
-                            field_name: field.clone(),
-                            struct_name: definition.identifier.clone(),
-                        },
-                    );
+                    let value =
+                        fields
+                            .get(field)
+                            .ok_or(RuntimeError::InvalidStructFieldAccess {
+                                field_name: field.clone(),
+                                struct_name: definition.identifier.clone(),
+                            })?;
 
-                    value
+                    Ok(value.borrow().copy_value())
                 } else {
                     Err(RuntimeError::InvalidStructFieldAccessTarget {
                         field: field.clone(),
@@ -92,7 +93,8 @@ impl LValue {
                 let struct_reference = object.get_reference();
 
                 if let RuntimeValue::Struct { fields, .. } = &mut *struct_reference.borrow_mut() {
-                    fields.insert(field.clone(), value);
+                    let field = fields.get(field).unwrap();
+                    *field.borrow_mut() = value;
                     Ok(())
                 } else {
                     Err(RuntimeError::InvalidStructFieldAccessTarget {
@@ -101,90 +103,9 @@ impl LValue {
                     })
                 }
             }
-            _ => todo!(),
         }
     }
 }
-
-// impl LValue {
-
-//     pub fn write(&self, value: RuntimeValue) -> RuntimeResult<()> {
-//         match self {
-//             Self::Variable(variable) => {
-//                 variable.borrow_mut().set_value(value)?;
-//                 Ok(())
-//             }
-
-//             Self::ArrayElement { array, index } => {
-//                 let mut array_value = array.read()?;
-
-//                 match &mut array_value {
-//                     RuntimeValue::Array { contents, .. } => {
-//                         contents[*index] = value;
-//                         array.write(array_value)
-//                     }
-
-//                     other => Err(RuntimeError::CannotIndexNonArrayType(
-//                         other.data_type()?.to_string(),
-//                     )),
-//                 }
-//             }
-
-//             Self::StructField { object, field } => {
-//                 let mut object_value = object.read()?;
-
-//                 match &mut object_value {
-//                     RuntimeValue::Struct { fields, .. } => {
-//                         fields.insert(field.clone(), value);
-//                         object.write(object_value)
-//                     }
-
-//                     other => Err(RuntimeError::InvalidStructFieldAccessTarget {
-//                         field: field.clone(),
-//                         data_type: other.data_type()?.to_string(),
-//                     }),
-//                 }
-//             }
-//         }
-//     }
-// }
-
-// #[derive(Debug, Clone, PartialEq)]
-// pub struct RuntimeVariable {
-//     pub value: RuntimeValue,
-//     pub data_type: DataType,
-// }
-
-// impl RuntimeVariable {
-//     pub fn from_value(value: RuntimeValue) -> Self {
-//         let data_type = value.data_type().unwrap();
-
-//         Self { value, data_type }
-//     }
-
-//     pub fn value(&self) -> RuntimeValue {
-//         self.value.clone()
-//     }
-
-//     pub fn set_value(&mut self, value: RuntimeValue) -> RuntimeResult<()> {
-//         let value = match (&self.data_type, value) {
-//             (DataType::U32, RuntimeValue::S32(i)) if i >= 0 => RuntimeValue::U32(i as u32),
-
-//             (expected, value) if value.data_type()? == *expected => value,
-
-//             (expected, value) => {
-//                 return Err(RuntimeError::AnnotationError {
-//                     expected: expected.to_string(),
-//                     found: value.data_type()?.to_string(),
-//                 });
-//             }
-//         };
-
-//         self.value = value;
-
-//         Ok(())
-//     }
-// }
 
 impl DataType {
     pub fn can_be_coerced_into(&self, into: &Self) -> bool {
@@ -216,7 +137,7 @@ pub enum RuntimeValue {
     Bool(bool),
     Struct {
         definition: Rc<StructDefinition>,
-        fields: HashMap<String, RuntimeValue>, // todo! make this a RuntimeReference too
+        fields: HashMap<String, RuntimeReference>,
     },
     Reference(RuntimeReference),
     Array {
@@ -241,7 +162,7 @@ impl RuntimeValue {
                 definition: Rc::clone(definition),
                 fields: fields
                     .iter()
-                    .map(|(k, v)| (k.clone(), v.copy_value()))
+                    .map(|(k, v)| (k.clone(), v.borrow().copy_value().into_runtime_reference()))
                     .collect(),
             },
             Self::Reference(r) => Self::Reference(r.clone()),
@@ -286,14 +207,15 @@ impl RuntimeValue {
     pub fn struct_access(&self, identifier: &str) -> RuntimeResult<RuntimeValue> {
         match self {
             Self::Struct { definition, fields } => {
-                let value = fields.get(identifier).map(RuntimeValue::copy_value).ok_or(
-                    RuntimeError::InvalidStructFieldAccess {
-                        field_name: identifier.to_string(),
-                        struct_name: definition.identifier.clone(),
-                    },
-                );
+                let value =
+                    fields
+                        .get(identifier)
+                        .ok_or(RuntimeError::InvalidStructFieldAccess {
+                            field_name: identifier.to_string(),
+                            struct_name: definition.identifier.clone(),
+                        })?;
 
-                value
+                Ok(value.borrow_mut().copy_value())
             }
 
             Self::Reference(_) => self.dereference(),

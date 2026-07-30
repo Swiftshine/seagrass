@@ -363,7 +363,12 @@ impl Runtime {
                             }
 
                             let value = fields.get(&field.identifier).unwrap();
-                            self.serialize_field(field, value, output, struct_byte_order)?;
+                            self.serialize_field(
+                                field,
+                                &value.borrow(),
+                                output,
+                                struct_byte_order,
+                            )?;
                         }
 
                         StructMember::Padding(count) => {
@@ -412,7 +417,8 @@ impl Runtime {
                 for field in definition.fields() {
                     fields.insert(
                         field.identifier.clone(),
-                        self.default_value(&field.data_type)?,
+                        self.default_value(&field.data_type)?
+                            .into_runtime_reference(),
                     );
                 }
 
@@ -482,10 +488,16 @@ impl Runtime {
                     Err(err) => return Err(err),
                 };
 
-                struct_fields.insert(field_definition.identifier.clone(), value);
+                struct_fields.insert(
+                    field_definition.identifier.clone(),
+                    value.into_runtime_reference(),
+                );
             } else if init.use_defaults {
                 let value = self.default_value(&field_definition.data_type)?;
-                struct_fields.insert(field_definition.identifier.clone(), value);
+                struct_fields.insert(
+                    field_definition.identifier.clone(),
+                    value.into_runtime_reference(),
+                );
             } else {
                 return Err(RuntimeError::IncompleteStructInitialization(
                     struct_definition.identifier.clone(),
@@ -627,7 +639,7 @@ impl Runtime {
                                 self.deserialize_value(&field.data_type, bytes, offset, byte_order)?
                             };
 
-                            fields.insert(field.identifier.clone(), value);
+                            fields.insert(field.identifier.clone(), value.into_runtime_reference());
                         }
                     }
                 }

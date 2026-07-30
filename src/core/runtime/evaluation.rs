@@ -168,33 +168,12 @@ impl Runtime {
 
             Expression::ArrayInitialization(init) => self.initialize_array(init),
 
-            Expression::StructFieldAccess {
-                expression,
-                field_identifier: field,
-            } => {
-                // todo! again don't just copy values
-                let value = self.evaluate_expression_to_value(expression)?;
-
-                match value {
-                    RuntimeValue::Struct { definition, fields } => fields
-                        .get(field)
-                        .map(RuntimeValue::copy_value)
-                        .ok_or(RuntimeError::InvalidStructFieldAccess {
-                            field_name: field.clone(),
-                            struct_name: definition.identifier.clone(),
-                        }),
-
-                    _ => Err(RuntimeError::InvalidStructFieldAccessTarget {
-                        field: field.clone(),
-                        data_type: value.data_type()?.to_string(),
-                    }),
-                }
+            Expression::StructFieldAccess { .. } => {
+                let reference = self.evaluate_expression_to_reference(expression)?;
+                Ok(reference.borrow().copy_value())
             }
 
-            Expression::ArrayAccess {
-                expression,
-                index_expression,
-            } => {
+            Expression::ArrayAccess { .. } => {
                 let reference = self.evaluate_expression_to_reference(expression)?;
                 Ok(reference.borrow().copy_value())
             }
@@ -305,26 +284,24 @@ impl Runtime {
                 expression,
                 field_identifier,
             } => {
-                todo!()
+                let struct_ref = self.evaluate_expression_to_reference(expression)?;
 
-                // let s = self.evaluate_expression_to_reference(expression)?;
+                let borrowed = struct_ref.borrow();
 
-                // let borrowed = s.borrow();
+                match &*borrowed {
+                    RuntimeValue::Struct { definition, fields } => fields
+                        .get(field_identifier)
+                        .cloned()
+                        .ok_or(RuntimeError::InvalidStructFieldAccess {
+                            field_name: field_identifier.clone(),
+                            struct_name: definition.identifier.clone(),
+                        }),
 
-                // match &*borrowed {
-                //     RuntimeValue::Struct { definition, fields } => fields
-                //         .get(field_identifier)
-                //         .cloned()
-                //         .ok_or(RuntimeError::InvalidStructFieldAccess {
-                //             field_name: field_identifier.clone(),
-                //             struct_name: definition.identifier.clone(),
-                //         }),
-
-                //     other => Err(RuntimeError::InvalidStructFieldAccessTarget {
-                //         field: field_identifier.clone(),
-                //         data_type: other.data_type()?.to_string(),
-                //     }),
-                // }
+                    other => Err(RuntimeError::InvalidStructFieldAccessTarget {
+                        field: field_identifier.clone(),
+                        data_type: other.data_type()?.to_string(),
+                    }),
+                }
             }
 
             Expression::Dereference(expr) => {
