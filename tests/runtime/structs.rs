@@ -37,11 +37,11 @@ pub fn initialize_struct() -> Result<()> {
     let two = runtime.get_global_variable("annotated_initialization")?;
 
     assert_eq!(
-        one.borrow().value().struct_access("field_1")?,
+        one.borrow().copy_value().struct_access("field_1")?,
         RuntimeValue::U32(1)
     );
     assert_eq!(
-        two.borrow().value().struct_access("field_1")?,
+        two.borrow().copy_value().struct_access("field_1")?,
         RuntimeValue::U32(2)
     );
 
@@ -66,7 +66,7 @@ pub fn access_struct() -> Result<()> {
 
     let value = runtime.get_global_variable("my_value")?;
 
-    assert_eq!(value.borrow().value(), RuntimeValue::U32(2));
+    assert_eq!(value.borrow().copy_value(), RuntimeValue::U32(2));
 
     Ok(())
 }
@@ -84,7 +84,7 @@ pub fn default_initialization() -> Result<()> {
 
     let out = execute_source(source, &vec![])?.get_global_variable("out")?;
 
-    assert_eq!(out.borrow().value(), RuntimeValue::U32(0));
+    assert_eq!(out.borrow().copy_value(), RuntimeValue::U32(0));
 
     Ok(())
 }

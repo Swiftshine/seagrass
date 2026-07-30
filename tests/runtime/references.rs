@@ -23,8 +23,8 @@ pub fn read_from_reference() -> Result<()> {
 
     let two = runtime.get_global_variable("value_2")?;
 
-    assert_eq!(one.borrow().value(), RuntimeValue::S32(1));
-    assert_eq!(two.borrow().value(), RuntimeValue::S32(2));
+    assert_eq!(one.borrow().copy_value(), RuntimeValue::S32(1));
+    assert_eq!(two.borrow().copy_value(), RuntimeValue::S32(2));
 
     Ok(())
 }
@@ -42,7 +42,7 @@ pub fn write_to_reference() -> Result<()> {
 
     let var = runtime.get_global_variable("my_var")?;
 
-    assert_eq!(var.borrow().value(), RuntimeValue::S32(2));
+    assert_eq!(var.borrow().copy_value(), RuntimeValue::S32(2));
 
     Ok(())
 }

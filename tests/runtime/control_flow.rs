@@ -18,21 +18,21 @@ pub fn if_statements() -> Result<()> {
     let source = "let my_val = 1;".to_string() + base;
     let out = execute_source(&source, &vec![])?.get_global_variable("out")?;
     assert_eq!(
-        out.borrow().value(),
+        out.borrow().copy_value(),
         RuntimeValue::String("ONE".to_string())
     );
 
     let source = "let my_val = 2;".to_string() + base;
     let out = execute_source(&source, &vec![])?.get_global_variable("out")?;
     assert_eq!(
-        out.borrow().value(),
+        out.borrow().copy_value(),
         RuntimeValue::String("TWO".to_string())
     );
 
     let source = "let my_val = 3;".to_string() + base;
     let out = execute_source(&source, &vec![])?.get_global_variable("out")?;
     assert_eq!(
-        out.borrow().value(),
+        out.borrow().copy_value(),
         RuntimeValue::String("DEFAULT".to_string())
     );
     Ok(())
@@ -50,7 +50,7 @@ pub fn while_statements() -> Result<()> {
 
     let val = execute_source(source, &vec![])?.get_global_variable("val")?;
 
-    assert_eq!(val.borrow().value(), RuntimeValue::S32(0));
+    assert_eq!(val.borrow().copy_value(), RuntimeValue::S32(0));
 
     Ok(())
 }
@@ -71,7 +71,7 @@ pub fn loop_statements() -> Result<()> {
 
     let val = execute_source(source, &vec![])?.get_global_variable("val")?;
 
-    assert_eq!(val.borrow().value(), RuntimeValue::S32(0));
+    assert_eq!(val.borrow().copy_value(), RuntimeValue::S32(0));
 
     Ok(())
 }
@@ -88,7 +88,7 @@ pub fn ranged_for_statements() -> Result<()> {
 
     let val = execute_source(source, &vec![])?.get_global_variable("val")?;
 
-    assert_eq!(val.borrow().value(), RuntimeValue::S32(45));
+    assert_eq!(val.borrow().copy_value(), RuntimeValue::S32(45));
     Ok(())
 }
 
@@ -105,7 +105,7 @@ pub fn iterator_for_statements() -> Result<()> {
 
     let val = execute_source(source, &vec![])?.get_global_variable("val")?;
 
-    assert_eq!(val.borrow().value(), RuntimeValue::S32(45));
+    assert_eq!(val.borrow().copy_value(), RuntimeValue::S32(45));
 
     Ok(())
 }

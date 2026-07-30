@@ -18,7 +18,10 @@ pub fn check_main() -> Result<()> {
         .current_scope()
         .get_variable("my_ident")?;
 
-    assert!(matches!(variable.borrow().value(), RuntimeValue::S32(123)));
+    assert!(matches!(
+        variable.borrow().copy_value(),
+        RuntimeValue::S32(123)
+    ));
     Ok(())
 }
 
@@ -44,7 +47,10 @@ pub fn return_value() -> Result<()> {
         .current_scope()
         .get_variable("my_ident")?;
 
-    assert!(matches!(variable.borrow().value(), RuntimeValue::S32(123)));
+    assert!(matches!(
+        variable.borrow().copy_value(),
+        RuntimeValue::S32(123)
+    ));
     Ok(())
 }
 
@@ -67,7 +73,7 @@ pub fn struct_method() -> Result<()> {
 
     let out = execute_source(source, &vec![])?.get_global_variable("out")?;
 
-    assert_eq!(out.borrow().value(), RuntimeValue::S32(4));
+    assert_eq!(out.borrow().copy_value(), RuntimeValue::S32(4));
 
     Ok(())
 }

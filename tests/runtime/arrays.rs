@@ -9,7 +9,10 @@ pub fn define_array() -> Result<()> {
 
     let arr = execute_source(source, &vec![])?.get_global_variable("arr")?;
 
-    assert!(matches!(arr.borrow().value(), RuntimeValue::Array { .. }));
+    assert!(matches!(
+        arr.borrow().copy_value(),
+        RuntimeValue::Array { .. }
+    ));
     Ok(())
 }
 
@@ -22,7 +25,7 @@ pub fn read_from_array() -> Result<()> {
 
     let out = execute_source(source, &vec![])?.get_global_variable("out")?;
 
-    assert_eq!(out.borrow().value(), RuntimeValue::S32(1 + 2 + 3));
+    assert_eq!(out.borrow().copy_value(), RuntimeValue::S32(1 + 2 + 3));
 
     Ok(())
 }
@@ -36,8 +39,8 @@ pub fn assign_to_array() -> Result<()> {
 
     let arr = execute_source(source, &vec![])?.get_global_variable("arr")?;
 
-    if let RuntimeValue::Array { contents, .. } = arr.borrow().value() {
-        assert_eq!(contents[1], RuntimeValue::S32(4));
+    if let RuntimeValue::Array { contents, .. } = arr.borrow().copy_value() {
+        assert_eq!(contents[1].borrow().copy_value(), RuntimeValue::S32(4));
         Ok(())
     } else {
         panic!("this should be an array")

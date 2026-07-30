@@ -12,8 +12,8 @@ pub fn compare_values() -> Result<()> {
     let one = runtime.get_global_variable("one")?;
     let two = runtime.get_global_variable("two")?;
 
-    assert_eq!(one.borrow().value(), RuntimeValue::Bool(true));
-    assert_eq!(two.borrow().value(), RuntimeValue::Bool(false));
+    assert_eq!(one.borrow().copy_value(), RuntimeValue::Bool(true));
+    assert_eq!(two.borrow().copy_value(), RuntimeValue::Bool(false));
     Ok(())
 }
 
@@ -46,8 +46,8 @@ pub fn compare_structs() -> Result<()> {
     let one = runtime.get_global_variable("result_1")?;
     let two = runtime.get_global_variable("result_2")?;
 
-    assert_eq!(one.borrow().value(), RuntimeValue::Bool(false));
-    assert_eq!(two.borrow().value(), RuntimeValue::Bool(true));
+    assert_eq!(one.borrow().copy_value(), RuntimeValue::Bool(false));
+    assert_eq!(two.borrow().copy_value(), RuntimeValue::Bool(true));
 
     // fail against structs of mismatching types
     let source = struct_definitions.to_string()
