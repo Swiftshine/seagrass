@@ -107,10 +107,34 @@ impl LValue {
 }
 
 impl DataType {
+    pub fn is_numeric(&self) -> bool {
+        matches!(
+            self,
+            Self::S8 | Self::U8 | Self::S16 | Self::U16 | Self::S32 | Self::U32 | Self::Usize
+        )
+    }
+
     pub fn can_be_coerced_into(&self, into: &Self) -> bool {
         match (self, into) {
-            (Self::S32, Self::U32) => true,
-            (Self::U32, Self::S32) => true,
+            // identical types
+            _ if self == into => true,
+
+            // integer widening
+            (Self::S8, Self::S16)
+            | (Self::S8, Self::S32)
+            | (Self::U8, Self::U16)
+            | (Self::U8, Self::S16)
+            | (Self::U8, Self::U32)
+            | (Self::S16, Self::S32)
+            | (Self::U16, Self::U32)
+            | (Self::U16, Self::S32)
+            | (Self::S8, Self::Usize)
+            | (Self::U8, Self::Usize)
+            | (Self::S16, Self::Usize)
+            | (Self::U16, Self::Usize)
+            | (Self::S32, Self::Usize)
+            | (Self::U32, Self::Usize) => true,
+
             (
                 Self::Array {
                     data_type: self_type,
@@ -121,7 +145,8 @@ impl DataType {
                     count: into_count,
                 },
             ) if self_type.can_be_coerced_into(into_type) => into_count >= self_count,
-            _ => *self == *into,
+
+            _ => false,
         }
     }
 }
@@ -130,8 +155,13 @@ impl DataType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeValue {
     None,
-    U32(u32),
+    S8(i8),
+    U8(u8),
+    S16(i16),
+    U16(u16),
     S32(i32),
+    U32(u32),
+    Usize(usize),
     String(String),
     Bool(bool),
     Struct {
@@ -158,8 +188,13 @@ impl RuntimeValue {
     pub fn copy_value(&self) -> Self {
         match self {
             Self::None => Self::None,
-            Self::U32(v) => Self::U32(*v),
+            Self::S8(v) => Self::S8(*v),
+            Self::U8(v) => Self::U8(*v),
+            Self::S16(v) => Self::S16(*v),
+            Self::U16(v) => Self::U16(*v),
             Self::S32(v) => Self::S32(*v),
+            Self::U32(v) => Self::U32(*v),
+            Self::Usize(v) => Self::Usize(*v),
             Self::String(s) => Self::String(s.clone()),
             Self::Bool(v) => Self::Bool(*v),
             Self::Struct { definition, fields } => Self::Struct {
@@ -194,8 +229,13 @@ impl RuntimeValue {
     pub fn data_type(&self) -> RuntimeResult<DataType> {
         match self {
             Self::None => Err(RuntimeError::NoDataTypeAttached),
+            Self::S8(_) => Ok(DataType::S8),
+            Self::U8(_) => Ok(DataType::U8),
+            Self::S16(_) => Ok(DataType::S16),
+            Self::U16(_) => Ok(DataType::U16),
             Self::U32(_) => Ok(DataType::U32),
             Self::S32(_) => Ok(DataType::S32),
+            Self::Usize(_) => Ok(DataType::Usize),
             Self::String(_) => Ok(DataType::String),
             Self::Bool(_) => Ok(DataType::Bool),
             Self::Struct { definition, .. } => {
@@ -309,8 +349,18 @@ impl Runtime {
             Ok(value)
         } else if data_type.can_be_coerced_into(into) {
             match (value, into) {
-                (RuntimeValue::U32(val), DataType::S32) => Ok(RuntimeValue::S32(val as i32)),
-                (RuntimeValue::S32(val), DataType::U32) => Ok(RuntimeValue::U32(val as u32)),
+                (RuntimeValue::S8(v), DataType::S16) => Ok(RuntimeValue::S16(v as i16)),
+                (RuntimeValue::S8(v), DataType::S32) => Ok(RuntimeValue::S32(v as i32)),
+
+                (RuntimeValue::U8(v), DataType::U16) => Ok(RuntimeValue::U16(v as u16)),
+                (RuntimeValue::U8(v), DataType::S16) => Ok(RuntimeValue::S16(v as i16)),
+                (RuntimeValue::U8(v), DataType::U32) => Ok(RuntimeValue::U32(v as u32)),
+
+                (RuntimeValue::S16(v), DataType::S32) => Ok(RuntimeValue::S32(v as i32)),
+
+                (RuntimeValue::U16(v), DataType::U32) => Ok(RuntimeValue::U32(v as u32)),
+                (RuntimeValue::U16(v), DataType::S32) => Ok(RuntimeValue::S32(v as i32)),
+
                 (RuntimeValue::Array { contents, .. }, DataType::Array { data_type, count }) => {
                     let mut vec = contents
                         .into_iter()
@@ -324,13 +374,13 @@ impl Runtime {
                         *count,
                         self.default_value(data_type)?.into_runtime_reference(),
                     );
-                    let contents = vec.into_boxed_slice();
 
                     Ok(RuntimeValue::Array {
                         inner_data_type: *data_type.clone(),
-                        contents,
+                        contents: vec.into_boxed_slice(),
                     })
                 }
+
                 _ => unreachable!("type must be coerceable but it isn't for some reason"),
             }
         } else {

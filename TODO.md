@@ -44,3 +44,5 @@ assertions
 write tests for like. every operator ever
 
 actual unary operations (negation)
+
+fix usize

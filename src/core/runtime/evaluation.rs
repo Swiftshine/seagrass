@@ -25,6 +25,27 @@ impl Runtime {
         let value_data_type_string = value.data_type()?.to_string();
 
         match (value, expected) {
+            // integer literals default to s32, but may narrow if the value fits
+            (RuntimeValue::S32(i), DataType::S8) if i >= i8::MIN as i32 && i <= i8::MAX as i32 => {
+                Ok(RuntimeValue::S8(i as i8))
+            }
+
+            (RuntimeValue::S32(i), DataType::U8) if i >= u8::MIN as i32 && i <= u8::MAX as i32 => {
+                Ok(RuntimeValue::U8(i as u8))
+            }
+
+            (RuntimeValue::S32(i), DataType::S16)
+                if i >= i16::MIN as i32 && i <= i16::MAX as i32 =>
+            {
+                Ok(RuntimeValue::S16(i as i16))
+            }
+
+            (RuntimeValue::S32(i), DataType::U16)
+                if i >= u16::MIN as i32 && i <= u16::MAX as i32 =>
+            {
+                Ok(RuntimeValue::U16(i as u16))
+            }
+
             (RuntimeValue::S32(i), DataType::U32) if i >= 0 => Ok(RuntimeValue::U32(i as u32)),
 
             (RuntimeValue::Bool(b), DataType::Bool) => Ok(RuntimeValue::Bool(b)),
@@ -405,9 +426,19 @@ impl Runtime {
 
     fn resolve_ast_value(&self, value: &Value) -> RuntimeResult<RuntimeValue> {
         match value {
+            Value::S8(i) => Ok(RuntimeValue::S8(*i)),
+
+            Value::U8(i) => Ok(RuntimeValue::U8(*i)),
+
+            Value::S16(i) => Ok(RuntimeValue::S16(*i)),
+
+            Value::U16(i) => Ok(RuntimeValue::U16(*i)),
+
             Value::S32(i) => Ok(RuntimeValue::S32(*i)),
 
             Value::U32(i) => Ok(RuntimeValue::U32(*i)),
+
+            Value::Usize(i) => Ok(RuntimeValue::Usize(*i)),
 
             Value::String(string) => Ok(RuntimeValue::String(string.clone())),
 

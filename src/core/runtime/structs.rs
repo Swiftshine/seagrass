@@ -211,7 +211,13 @@ impl Runtime {
         exceptions: Vec<ValidationException>,
     ) -> RuntimeResult<()> {
         match data_type {
-            DataType::U32 | DataType::S32 | DataType::Bool => Ok(()),
+            DataType::S8
+            | DataType::U8
+            | DataType::S16
+            | DataType::U16
+            | DataType::S32
+            | DataType::U32
+            | DataType::Bool => Ok(()),
 
             DataType::String => {
                 if exceptions.contains(&ValidationException::SerializeAsAscii) {
@@ -220,12 +226,15 @@ impl Runtime {
                     Err(RuntimeError::NonPODType(data_type.to_string()))
                 }
             }
-            DataType::Reference(_) | DataType::Iterator(_) => {
+
+            DataType::Reference(_) | DataType::Iterator(_) | DataType::Usize => {
                 Err(RuntimeError::NonPODType(data_type.to_string()))
             }
+
             DataType::Array { data_type, .. } => {
                 self.validate_pod_for_data_type(data_type, exceptions)
             }
+
             DataType::UserDefined(identifier) => {
                 let struct_field_definition = self.get_struct_definition(identifier)?;
 
@@ -323,13 +332,29 @@ impl Runtime {
         byte_order: ByteOrder,
     ) -> RuntimeResult<()> {
         match value {
-            RuntimeValue::U32(value) => match byte_order {
+            RuntimeValue::S8(value) => output.push(*value as u8),
+
+            RuntimeValue::U8(value) => output.push(*value),
+
+            RuntimeValue::S16(value) => match byte_order {
+                ByteOrder::Little => output.extend(value.to_le_bytes()),
+
+                ByteOrder::Big => output.extend(value.to_be_bytes()),
+            },
+
+            RuntimeValue::U16(value) => match byte_order {
                 ByteOrder::Little => output.extend(value.to_le_bytes()),
 
                 ByteOrder::Big => output.extend(value.to_be_bytes()),
             },
 
             RuntimeValue::S32(value) => match byte_order {
+                ByteOrder::Little => output.extend(value.to_le_bytes()),
+
+                ByteOrder::Big => output.extend(value.to_be_bytes()),
+            },
+
+            RuntimeValue::U32(value) => match byte_order {
                 ByteOrder::Little => output.extend(value.to_le_bytes()),
 
                 ByteOrder::Big => output.extend(value.to_be_bytes()),
@@ -390,9 +415,19 @@ impl Runtime {
 
     pub fn default_value(&self, data_type: &DataType) -> RuntimeResult<RuntimeValue> {
         match data_type {
-            DataType::U32 => Ok(RuntimeValue::U32(0)),
+            DataType::S8 => Ok(RuntimeValue::S8(0)),
+
+            DataType::U8 => Ok(RuntimeValue::U8(0)),
+
+            DataType::S16 => Ok(RuntimeValue::S16(0)),
+
+            DataType::U16 => Ok(RuntimeValue::U16(0)),
 
             DataType::S32 => Ok(RuntimeValue::S32(0)),
+
+            DataType::U32 => Ok(RuntimeValue::U32(0)),
+
+            DataType::Usize => Ok(RuntimeValue::Usize(0)),
 
             DataType::Bool => Ok(RuntimeValue::Bool(false)),
 
@@ -529,6 +564,36 @@ impl Runtime {
         byte_order: ByteOrder,
     ) -> RuntimeResult<RuntimeValue> {
         match data_type {
+            DataType::S8 => {
+                let byte = self.read_byte(bytes, offset)?;
+
+                Ok(RuntimeValue::S8(byte as i8))
+            }
+
+            DataType::U8 => {
+                let byte = self.read_byte(bytes, offset)?;
+
+                Ok(RuntimeValue::U8(byte))
+            }
+
+            DataType::S16 => {
+                let slice = self.read_exact::<2>(bytes, offset)?;
+
+                Ok(RuntimeValue::S16(match byte_order {
+                    ByteOrder::Little => i16::from_le_bytes(slice),
+                    ByteOrder::Big => i16::from_be_bytes(slice),
+                }))
+            }
+
+            DataType::U16 => {
+                let slice = self.read_exact::<2>(bytes, offset)?;
+
+                Ok(RuntimeValue::U16(match byte_order {
+                    ByteOrder::Little => u16::from_le_bytes(slice),
+                    ByteOrder::Big => u16::from_be_bytes(slice),
+                }))
+            }
+
             DataType::U32 => {
                 let slice = self.read_exact::<4>(bytes, offset)?;
 
@@ -593,9 +658,9 @@ impl Runtime {
                 })
             }
 
-            DataType::Reference(_) => Err(RuntimeError::CannotDeserialize("reference")),
+            DataType::Reference(_) => Err(RuntimeError::CannotDeserialize("reference".to_string())),
 
-            DataType::Iterator(_) => Err(RuntimeError::CannotDeserialize("iterator")),
+            DataType::Iterator(_) => Err(RuntimeError::CannotDeserialize("iterator".to_string())),
 
             DataType::UserDefined(identifier) => {
                 let definition = self.get_struct_definition(identifier)?.clone();
@@ -650,6 +715,8 @@ impl Runtime {
 
                 Ok(RuntimeValue::Struct { definition, fields })
             }
+
+            _ => Err(RuntimeError::CannotDeserialize(data_type.to_string())),
         }
     }
 

@@ -134,7 +134,7 @@ QualifiedIdentifier = {
 }
 
 BuiltinDataType = {
-    "u32" | "s32" | "string" | "bool"
+    "s8" | "u8" | "s16" | "u16" | "s32" | "u32" | "string" | "bool"
 }
 
 DataType = {

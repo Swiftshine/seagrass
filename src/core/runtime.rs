@@ -154,9 +154,9 @@ pub enum RuntimeError {
     #[error("Unexpectedly reached EOF when deserializing file")]
     UnexpectedEOF,
     #[error("Serialization error: {0}")]
-    SerializationError(String), // bleh
-    #[error("Cannot deserialize a {0}")]
-    CannotDeserialize(&'static str),
+    SerializationError(String),
+    #[error("Cannot deserialize a '{0}'")]
+    CannotDeserialize(String),
 }
 
 impl RuntimeError {

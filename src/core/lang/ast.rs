@@ -182,8 +182,13 @@ pub struct FunctionCall {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
+    S8(i8),
+    U8(u8),
+    S16(i16),
+    U16(u16),
     S32(i32),
     U32(u32),
+    Usize(usize),
     String(String),
     Bool(bool),
     Identifier(String),
@@ -197,8 +202,13 @@ pub struct Parameter {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum DataType {
-    U32,
+    S8,
+    U8,
+    S16,
+    U16,
     S32,
+    U32,
+    Usize,
     String,
     Bool,
     Reference(Box<DataType>),
@@ -209,13 +219,19 @@ pub enum DataType {
         count: usize,
     },
 }
+
 impl std::fmt::Display for DataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::U32 => write!(f, "u32"),
+            Self::S8 => write!(f, "s8"),
+            Self::U8 => write!(f, "u8"),
+            Self::S16 => write!(f, "s16"),
+            Self::U16 => write!(f, "u16"),
             Self::S32 => write!(f, "s32"),
+            Self::U32 => write!(f, "u32"),
             Self::String => write!(f, "string"),
             Self::Bool => write!(f, "bool"),
+            Self::Usize => write!(f, "usize"),
             Self::Reference(data_type) => write!(f, "&{}", data_type),
             Self::UserDefined(user_defined_type) => write!(f, "{user_defined_type}"),
             Self::Array { data_type, count } => write!(f, "[{}; {}]", data_type, count),

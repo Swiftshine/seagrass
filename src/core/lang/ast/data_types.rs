@@ -92,8 +92,12 @@ fn build_single_type(pair: Pair<Rule>) -> Result<DataType> {
     assert_eq!(pair.as_rule(), Rule::SingleDataType);
 
     match pair.as_str() {
-        "u32" => Ok(DataType::U32),
+        "s8" => Ok(DataType::S8),
+        "u8" => Ok(DataType::U8),
+        "s16" => Ok(DataType::S16),
+        "u16" => Ok(DataType::U16),
         "s32" => Ok(DataType::S32),
+        "u32" => Ok(DataType::U32),
         "string" => Ok(DataType::String),
         "bool" => Ok(DataType::Bool),
         other => Ok(DataType::UserDefined(other.to_string())),
