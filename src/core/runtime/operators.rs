@@ -3,26 +3,137 @@ use crate::core::{
     runtime::{RuntimeError, RuntimeResult, RuntimeValue},
 };
 
+macro_rules! numeric_compare {
+    ($lhs:expr, $rhs:expr, $op:tt) => {{
+        let (lhs, rhs) = Self::promote_numeric_pair($lhs, $rhs)?;
+
+        Ok(Self::Bool(match (lhs, rhs) {
+            (Self::S8(a), Self::S8(b)) => a $op b,
+            (Self::U8(a), Self::U8(b)) => a $op b,
+
+            (Self::S16(a), Self::S16(b)) => a $op b,
+            (Self::U16(a), Self::U16(b)) => a $op b,
+
+            (Self::S32(a), Self::S32(b)) => a $op b,
+            (Self::U32(a), Self::U32(b)) => a $op b,
+
+            (Self::Usize(a), Self::Usize(b)) => a $op b,
+
+            _ => unreachable!(),
+        }))
+    }};
+}
+
+macro_rules! numeric_equality {
+    ($lhs:expr, $rhs:expr, $op:tt) => {{
+        let (lhs, rhs) = Self::promote_numeric_pair($lhs, $rhs)?;
+
+        Ok(Self::Bool(match (lhs.copy_value(), rhs.copy_value()) {
+            (Self::S8(a), Self::S8(b)) => a $op b,
+            (Self::U8(a), Self::U8(b)) => a $op b,
+
+            (Self::S16(a), Self::S16(b)) => a $op b,
+            (Self::U16(a), Self::U16(b)) => a $op b,
+
+            (Self::S32(a), Self::S32(b)) => a $op b,
+            (Self::U32(a), Self::U32(b)) => a $op b,
+
+            (Self::Usize(a), Self::Usize(b)) => a $op b,
+
+            _ => unreachable!(
+                "numeric promotion produced non-numeric values of lhs: '{:#?}' and rhs: '{:#?}'",
+                lhs,
+                rhs
+            ),
+        }))
+    }};
+}
+
+macro_rules! numeric_bitwise {
+    ($lhs:expr, $rhs:expr, $op:tt) => {{
+        let (lhs, rhs) = Self::promote_numeric_pair($lhs, $rhs)?;
+
+        match (lhs, rhs) {
+            (Self::S8(a), Self::S8(b)) => Ok(Self::S8(a $op b)),
+            (Self::U8(a), Self::U8(b)) => Ok(Self::U8(a $op b)),
+
+            (Self::S16(a), Self::S16(b)) => Ok(Self::S16(a $op b)),
+            (Self::U16(a), Self::U16(b)) => Ok(Self::U16(a $op b)),
+
+            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a $op b)),
+            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a $op b)),
+
+            (Self::Usize(a), Self::Usize(b)) => Ok(Self::Usize(a $op b)),
+
+            _ => unreachable!(),
+        }
+    }};
+}
+
+macro_rules! numeric_shift {
+    ($lhs:expr, $rhs:expr, $op:tt) => {{
+        let amount = Self::determine_shift_amount($rhs)?;
+
+        match $lhs {
+            Self::S8(v)     => Ok(Self::S8(v $op amount)),
+            Self::U8(v)     => Ok(Self::U8(v $op amount)),
+
+            Self::S16(v)    => Ok(Self::S16(v $op amount)),
+            Self::U16(v)    => Ok(Self::U16(v $op amount)),
+
+            Self::S32(v)    => Ok(Self::S32(v $op amount)),
+            Self::U32(v)    => Ok(Self::U32(v $op amount)),
+
+            Self::Usize(v)  => Ok(Self::Usize(v $op amount)),
+
+            _ => unreachable!()
+        }
+    }};
+}
+
 impl RuntimeValue {
-    fn numeric_arithmetic<F>(
+    /* helpers */
+
+    fn determine_shift_amount(value: RuntimeValue) -> RuntimeResult<u32> {
+        match value {
+            Self::S8(v) if v >= 0 => Ok(v as u32),
+            Self::U8(v) => Ok(v as u32),
+
+            Self::S16(v) if v >= 0 => Ok(v as u32),
+            Self::U16(v) => Ok(v as u32),
+
+            Self::S32(v) if v >= 0 => Ok(v as u32),
+            Self::U32(v) => Ok(v),
+
+            Self::Usize(v) => Ok(v as u32),
+
+            _ => unreachable!(),
+        }
+    }
+
+    fn numeric_arithmetic<F32, FSize>(
         lhs: RuntimeValue,
         rhs: RuntimeValue,
-        op: F,
+        op32: F32,
+        op_usize: FSize,
     ) -> RuntimeResult<RuntimeValue>
     where
-        F: FnOnce(i32, i32) -> i32,
+        F32: FnOnce(i32, i32) -> i32,
+        FSize: FnOnce(usize, usize) -> usize,
     {
         let (lhs, rhs) = Self::promote_numeric_pair(lhs, rhs)?;
 
         match (lhs, rhs) {
-            (Self::S8(a), Self::S8(b)) => Ok(Self::S8(op(a as i32, b as i32) as i8)),
-            (Self::U8(a), Self::U8(b)) => Ok(Self::U8(op(a as i32, b as i32) as u8)),
+            (Self::S8(a), Self::S8(b)) => Ok(Self::S8(op32(a as i32, b as i32) as i8)),
+            (Self::U8(a), Self::U8(b)) => Ok(Self::U8(op32(a as i32, b as i32) as u8)),
 
-            (Self::S16(a), Self::S16(b)) => Ok(Self::S16(op(a as i32, b as i32) as i16)),
-            (Self::U16(a), Self::U16(b)) => Ok(Self::U16(op(a as i32, b as i32) as u16)),
+            (Self::S16(a), Self::S16(b)) => Ok(Self::S16(op32(a as i32, b as i32) as i16)),
+            (Self::U16(a), Self::U16(b)) => Ok(Self::U16(op32(a as i32, b as i32) as u16)),
 
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(op(a, b))),
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(op(a as i32, b as i32) as u32)),
+            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(op32(a, b))),
+            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(op32(a as i32, b as i32) as u32)),
+
+            (Self::Usize(a), Self::Usize(b)) => Ok(Self::Usize(op_usize(a, b))),
 
             _ => unreachable!(),
         }
@@ -38,6 +149,7 @@ impl RuntimeValue {
         let target = match (&lhs_type, &rhs_type) {
             (DataType::S32, _) | (_, DataType::S32) => DataType::S32,
             (DataType::U32, _) | (_, DataType::U32) => DataType::U32,
+            (DataType::Usize, _) | (_, DataType::Usize) => DataType::Usize,
 
             (DataType::S16, DataType::S16)
             | (DataType::S16, DataType::S8)
@@ -54,7 +166,6 @@ impl RuntimeValue {
             (DataType::U8, DataType::S8) | (DataType::S8, DataType::U8) => DataType::S16,
 
             (DataType::U16, DataType::S16) | (DataType::S16, DataType::U16) => DataType::S32,
-
             _ => {
                 return Err(RuntimeError::unsupported_binary_operation(
                     lhs_type.to_string(),
@@ -108,108 +219,23 @@ impl RuntimeValue {
     /* arithmetic */
 
     pub fn add(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let (lhs, rhs) = Self::promote_numeric_pair(self, rhs)?;
-
-        match (lhs, rhs) {
-            (Self::S8(a), Self::S8(b)) => Ok(Self::S8(a + b)),
-            (Self::U8(a), Self::U8(b)) => Ok(Self::U8(a + b)),
-
-            (Self::S16(a), Self::S16(b)) => Ok(Self::S16(a + b)),
-            (Self::U16(a), Self::U16(b)) => Ok(Self::U16(a + b)),
-
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a + b)),
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a + b)),
-
-            _ => unreachable!(),
-        }
+        Self::numeric_arithmetic(self, rhs, |a, b| a + b, |a, b| a + b)
     }
 
     pub fn subtract(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        let (lhs, rhs) = Self::promote_numeric_pair(self, rhs)?;
-
-        match (lhs, rhs) {
-            (Self::S8(a), Self::S8(b)) => Ok(Self::S8(a - b)),
-            (Self::U8(a), Self::U8(b)) => Ok(Self::U8(a - b)),
-
-            (Self::S16(a), Self::S16(b)) => Ok(Self::S16(a - b)),
-            (Self::U16(a), Self::U16(b)) => Ok(Self::U16(a - b)),
-
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a - b)),
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a - b)),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, "-", rhs_type,
-            )),
-        }
+        Self::numeric_arithmetic(self, rhs, |a, b| a - b, |a, b| a - b)
     }
 
     pub fn multiply(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        let (lhs, rhs) = Self::promote_numeric_pair(self, rhs)?;
-
-        match (lhs, rhs) {
-            (Self::S8(a), Self::S8(b)) => Ok(Self::S8(a * b)),
-            (Self::U8(a), Self::U8(b)) => Ok(Self::U8(a * b)),
-
-            (Self::S16(a), Self::S16(b)) => Ok(Self::S16(a * b)),
-            (Self::U16(a), Self::U16(b)) => Ok(Self::U16(a * b)),
-
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a * b)),
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a * b)),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, "*", rhs_type,
-            )),
-        }
+        Self::numeric_arithmetic(self, rhs, |a, b| a * b, |a, b| a * b)
     }
 
     pub fn divide(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        let (lhs, rhs) = Self::promote_numeric_pair(self, rhs)?;
-
-        match (lhs, rhs) {
-            (Self::S8(a), Self::S8(b)) => Ok(Self::S8(a / b)),
-            (Self::U8(a), Self::U8(b)) => Ok(Self::U8(a / b)),
-
-            (Self::S16(a), Self::S16(b)) => Ok(Self::S16(a / b)),
-            (Self::U16(a), Self::U16(b)) => Ok(Self::U16(a / b)),
-
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a / b)),
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a / b)),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, "/", rhs_type,
-            )),
-        }
+        Self::numeric_arithmetic(self, rhs, |a, b| a / b, |a, b| a / b)
     }
 
     pub fn modulo(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        let (lhs, rhs) = Self::promote_numeric_pair(self, rhs)?;
-
-        match (lhs, rhs) {
-            (Self::S8(a), Self::S8(b)) => Ok(Self::S8(a % b)),
-            (Self::U8(a), Self::U8(b)) => Ok(Self::U8(a % b)),
-
-            (Self::S16(a), Self::S16(b)) => Ok(Self::S16(a % b)),
-            (Self::U16(a), Self::U16(b)) => Ok(Self::U16(a % b)),
-
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a % b)),
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a % b)),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, "%", rhs_type,
-            )),
-        }
+        Self::numeric_arithmetic(self, rhs, |a, b| a % b, |a, b| a % b)
     }
 
     /* comparisons */
@@ -222,23 +248,7 @@ impl RuntimeValue {
 
         // numeric equality
         if self.data_type()?.is_numeric() && rhs.data_type()?.is_numeric() {
-            let (lhs, rhs) = Self::promote_numeric_pair(self, rhs)?;
-
-            return match (lhs.copy_value(), rhs.copy_value()) {
-                (Self::S8(a), Self::S8(b)) => compare(a == b),
-                (Self::U8(a), Self::U8(b)) => compare(a == b),
-
-                (Self::S16(a), Self::S16(b)) => compare(a == b),
-                (Self::U16(a), Self::U16(b)) => compare(a == b),
-
-                (Self::S32(a), Self::S32(b)) => compare(a == b),
-                (Self::U32(a), Self::U32(b)) => compare(a == b),
-
-                _ => unreachable!(
-                    "numeric promotion produced non-numeric values of lhs: '{:#?}' and rhs: '{:#?}'",
-                    lhs, rhs
-                ),
-            };
+            return numeric_equality!(self, rhs, ==);
         }
 
         match (self, rhs) {
@@ -280,20 +290,7 @@ impl RuntimeValue {
 
         // numeric inequality
         if self.data_type()?.is_numeric() && rhs.data_type()?.is_numeric() {
-            let (lhs, rhs) = Self::promote_numeric_pair(self, rhs)?;
-
-            return match (lhs, rhs) {
-                (Self::S8(a), Self::S8(b)) => compare(a != b),
-                (Self::U8(a), Self::U8(b)) => compare(a != b),
-
-                (Self::S16(a), Self::S16(b)) => compare(a != b),
-                (Self::U16(a), Self::U16(b)) => compare(a != b),
-
-                (Self::S32(a), Self::S32(b)) => compare(a != b),
-                (Self::U32(a), Self::U32(b)) => compare(a != b),
-
-                _ => unreachable!("numeric promotion produced non-numeric values"),
-            };
+            return numeric_equality!(self, rhs, !=);
         }
 
         match (self, rhs) {
@@ -328,186 +325,42 @@ impl RuntimeValue {
     }
 
     pub fn compare_lt(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        let (lhs, rhs) = Self::promote_numeric_pair(self, rhs)?;
-
-        let compare = |result| Ok(Self::Bool(result));
-
-        match (lhs, rhs) {
-            (Self::S8(a), Self::S8(b)) => compare(a < b),
-            (Self::U8(a), Self::U8(b)) => compare(a < b),
-
-            (Self::S16(a), Self::S16(b)) => compare(a < b),
-            (Self::U16(a), Self::U16(b)) => compare(a < b),
-
-            (Self::S32(a), Self::S32(b)) => compare(a < b),
-            (Self::U32(a), Self::U32(b)) => compare(a < b),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, "<", rhs_type,
-            )),
-        }
+        numeric_compare!(self, rhs, <)
     }
 
     pub fn compare_lte(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        let (lhs, rhs) = Self::promote_numeric_pair(self, rhs)?;
-
-        let compare = |result| Ok(Self::Bool(result));
-
-        match (lhs, rhs) {
-            (Self::S8(a), Self::S8(b)) => compare(a <= b),
-            (Self::U8(a), Self::U8(b)) => compare(a <= b),
-
-            (Self::S16(a), Self::S16(b)) => compare(a <= b),
-            (Self::U16(a), Self::U16(b)) => compare(a <= b),
-
-            (Self::S32(a), Self::S32(b)) => compare(a <= b),
-            (Self::U32(a), Self::U32(b)) => compare(a <= b),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, "<=", rhs_type,
-            )),
-        }
+        numeric_compare!(self, rhs, <=)
     }
 
     pub fn compare_gt(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        let (lhs, rhs) = Self::promote_numeric_pair(self, rhs)?;
-
-        let compare = |result| Ok(Self::Bool(result));
-
-        match (lhs, rhs) {
-            (Self::S8(a), Self::S8(b)) => compare(a > b),
-            (Self::U8(a), Self::U8(b)) => compare(a > b),
-
-            (Self::S16(a), Self::S16(b)) => compare(a > b),
-            (Self::U16(a), Self::U16(b)) => compare(a > b),
-
-            (Self::S32(a), Self::S32(b)) => compare(a > b),
-            (Self::U32(a), Self::U32(b)) => compare(a > b),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, ">", rhs_type,
-            )),
-        }
+        numeric_compare!(self, rhs, >)
     }
 
     pub fn compare_gte(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        let (lhs, rhs) = Self::promote_numeric_pair(self, rhs)?;
-
-        let compare = |result| Ok(Self::Bool(result));
-
-        match (lhs, rhs) {
-            (Self::S8(a), Self::S8(b)) => compare(a >= b),
-            (Self::U8(a), Self::U8(b)) => compare(a >= b),
-
-            (Self::S16(a), Self::S16(b)) => compare(a >= b),
-            (Self::U16(a), Self::U16(b)) => compare(a >= b),
-
-            (Self::S32(a), Self::S32(b)) => compare(a >= b),
-            (Self::U32(a), Self::U32(b)) => compare(a >= b),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, ">=", rhs_type,
-            )),
-        }
+        numeric_compare!(self, rhs, >=)
     }
 
     /* bitwise */
+
     pub fn bitwise_and(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        match (self, rhs) {
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a & b)),
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a & b)),
-
-            (Self::S32(a), Self::U32(b)) => Ok(Self::S32(a & b as i32)),
-            (Self::U32(a), Self::S32(b)) => Ok(Self::S32((a as i32) & b)),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, "&", rhs_type,
-            )),
-        }
+        numeric_bitwise!(self, rhs, &)
     }
 
     pub fn bitwise_or(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        match (self, rhs) {
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a | b)),
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a | b)),
-
-            (Self::S32(a), Self::U32(b)) => Ok(Self::S32(a | b as i32)),
-            (Self::U32(a), Self::S32(b)) => Ok(Self::S32((a as i32) | b)),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, "|", rhs_type,
-            )),
-        }
+        numeric_bitwise!(self, rhs, |)
     }
 
     pub fn bitwise_xor(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        match (self, rhs) {
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a ^ b)),
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a ^ b)),
-
-            (Self::S32(a), Self::U32(b)) => Ok(Self::S32(a ^ b as i32)),
-            (Self::U32(a), Self::S32(b)) => Ok(Self::S32((a as i32) ^ b)),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, "^", rhs_type,
-            )),
-        }
+        numeric_bitwise!(self, rhs, ^)
     }
 
     /* shifts */
     pub fn shift_left(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        match (self, rhs) {
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a << b)),
-            (Self::S32(a), Self::U32(b)) => Ok(Self::S32(a << b)),
-
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a << b)),
-            (Self::U32(a), Self::S32(b)) => Ok(Self::U32(a << b as u32)),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, "<<", rhs_type,
-            )),
-        }
+        numeric_shift!(self, rhs, <<)
     }
 
     pub fn shift_right(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        let lhs_type = self.data_type()?.to_string();
-        let rhs_type = rhs.data_type()?.to_string();
-
-        match (self, rhs) {
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a >> b)),
-            (Self::S32(a), Self::U32(b)) => Ok(Self::S32(a >> b)),
-
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a >> b)),
-            (Self::U32(a), Self::S32(b)) => Ok(Self::U32(a >> b as u32)),
-
-            _ => Err(RuntimeError::unsupported_binary_operation(
-                lhs_type, ">>", rhs_type,
-            )),
-        }
+        numeric_shift!(self, rhs, >>)
     }
 
     /* logical */

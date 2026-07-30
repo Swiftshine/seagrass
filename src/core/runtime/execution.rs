@@ -146,8 +146,8 @@ impl Runtime {
                 let end = self.evaluate_expression_to_value(end)?;
 
                 let start = match start {
-                    RuntimeValue::U32(v) => v,
-                    RuntimeValue::S32(v) if v >= 0 => v as u32,
+                    RuntimeValue::U32(v) => v as usize,
+                    RuntimeValue::S32(v) if v >= 0 => v as usize,
 
                     other => {
                         return Err(RuntimeError::ExpectedIntegerForRange(
@@ -157,8 +157,8 @@ impl Runtime {
                 };
 
                 let end = match end {
-                    RuntimeValue::U32(v) => v,
-                    RuntimeValue::S32(v) if v >= 0 => v as u32,
+                    RuntimeValue::U32(v) => v as usize,
+                    RuntimeValue::S32(v) if v >= 0 => v as usize,
 
                     other => {
                         return Err(RuntimeError::ExpectedIntegerForRange(
@@ -170,7 +170,7 @@ impl Runtime {
                 for i in start..end {
                     self.push_scope();
 
-                    self.assign_variable(iterator_identifier.clone(), RuntimeValue::U32(i));
+                    self.assign_variable(iterator_identifier.clone(), RuntimeValue::Usize(i));
 
                     let result = self.execute_block_contents(block);
 
