@@ -6,7 +6,6 @@ use crate::core::{
 };
 
 pub type RuntimeReference = Rc<RefCell<RuntimeValue>>;
-// pub type RuntimeIterator = Rc<RefCell<RuntimeValue>>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LValue {
@@ -140,6 +139,11 @@ pub enum RuntimeValue {
         fields: HashMap<String, RuntimeReference>,
     },
     Reference(RuntimeReference),
+    // ik this looks identical to Array but they are different for a reason
+    Iterator {
+        inner_data_type: DataType,
+        contents: Box<[RuntimeReference]>,
+    },
     Array {
         inner_data_type: DataType,
         contents: Box<[RuntimeReference]>,
@@ -177,6 +181,13 @@ impl RuntimeValue {
                     .collect::<Vec<_>>()
                     .into_boxed_slice(),
             },
+            Self::Iterator {
+                inner_data_type,
+                contents,
+            } => Self::Iterator {
+                inner_data_type: inner_data_type.clone(),
+                contents: contents.clone(),
+            },
         }
     }
 
@@ -201,6 +212,10 @@ impl RuntimeValue {
             Self::Reference(variable) => Ok(DataType::Reference(Box::new(
                 variable.borrow().data_type()?,
             ))),
+
+            Self::Iterator {
+                inner_data_type, ..
+            } => Ok(DataType::Iterator(Box::new(inner_data_type.clone()))),
         }
     }
 

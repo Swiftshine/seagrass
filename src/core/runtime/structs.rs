@@ -220,7 +220,9 @@ impl Runtime {
                     Err(RuntimeError::NonPODType(data_type.to_string()))
                 }
             }
-            DataType::Reference(_) => Err(RuntimeError::NonPODType(data_type.to_string())),
+            DataType::Reference(_) | DataType::Iterator(_) => {
+                Err(RuntimeError::NonPODType(data_type.to_string()))
+            }
             DataType::Array { data_type, .. } => {
                 self.validate_pod_for_data_type(data_type, exceptions)
             }
@@ -397,6 +399,8 @@ impl Runtime {
             DataType::String => Ok(RuntimeValue::String(String::new())),
 
             DataType::Reference(_) => Err(RuntimeError::CannotDefaultInitializeReference),
+
+            DataType::Iterator(_) => Err(RuntimeError::CannotDefaultInitializeIterator),
 
             DataType::Array { data_type, count } => {
                 let contents =
@@ -589,9 +593,9 @@ impl Runtime {
                 })
             }
 
-            DataType::Reference(_) => {
-                unreachable!("cannot deserialize references")
-            }
+            DataType::Reference(_) => Err(RuntimeError::CannotDeserialize("reference")),
+
+            DataType::Iterator(_) => Err(RuntimeError::CannotDeserialize("iterator")),
 
             DataType::UserDefined(identifier) => {
                 let definition = self.get_struct_definition(identifier)?.clone();

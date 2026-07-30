@@ -93,6 +93,8 @@ pub enum RuntimeError {
     TypeCoercionFail { from: String, to: String },
     #[error("Cannot invoke a method on type '{0}'")]
     CannotInvokeMethodOnType(String),
+    #[error("Cannot iterate on type '{0}'")]
+    CannotIterateOnType(String),
 
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]
@@ -138,6 +140,9 @@ pub enum RuntimeError {
     InvalidFunctionArguments { signature: String, note: String },
     #[error("References cannot have default values")]
     CannotDefaultInitializeReference,
+    #[error("Iterators cannot have default values")]
+    CannotDefaultInitializeIterator,
+
     #[error("Array index {index} out of bounds when the length is {length}")]
     ArrayIndexOutOfBounds { index: usize, length: usize },
     #[error("Cannot index type {0}")]
@@ -150,6 +155,8 @@ pub enum RuntimeError {
     UnexpectedEOF,
     #[error("Serialization error: {0}")]
     SerializationError(String), // bleh
+    #[error("Cannot deserialize a {0}")]
+    CannotDeserialize(&'static str),
 }
 
 impl RuntimeError {

@@ -3,7 +3,10 @@ use crate::core::{
         Assignment, AssignmentTarget, Block, ControlStatement, Expression, Program, Return,
         Statement, Value,
     },
-    runtime::{ControlFlow, Runtime, RuntimeError, RuntimeResult, RuntimeValue, StatementResult},
+    runtime::{
+        ControlFlow, Runtime, RuntimeError, RuntimeResult, RuntimeValue, StatementResult,
+        value::RuntimeReference,
+    },
 };
 
 impl Runtime {
@@ -96,6 +99,35 @@ impl Runtime {
         }
     }
 
+    fn execute_iteration(
+        &mut self,
+        iterator_identifier: &String,
+        contents: &[RuntimeReference],
+        block: &Block,
+    ) -> StatementResult {
+        for item in contents {
+            match {
+                self.push_scope();
+                self.assign_variable(
+                    iterator_identifier.clone(),
+                    RuntimeValue::Reference(item.clone()),
+                );
+
+                let result = self.execute_block_contents(block);
+
+                self.pop_scope();
+
+                result
+            }? {
+                ControlFlow::Continue => {}
+                ControlFlow::Break => break,
+                ControlFlow::Return(value) => return Ok(ControlFlow::Return(value)),
+            }
+        }
+
+        Ok(ControlFlow::Continue)
+    }
+
     fn execute_for(
         &mut self,
         iterator_identifier: &String,
@@ -185,7 +217,28 @@ impl Runtime {
                                 }
                             }
                         }
-                        _ => unreachable!("{:?}", value),
+
+                        RuntimeValue::Iterator { contents, .. } => {
+                            for item in &contents {
+                                match iterate(
+                                    self,
+                                    iterator_identifier,
+                                    RuntimeValue::Reference(item.clone()),
+                                )? {
+                                    ControlFlow::Continue => {}
+                                    ControlFlow::Break => break,
+                                    ControlFlow::Return(value) => {
+                                        return Ok(ControlFlow::Return(value));
+                                    }
+                                }
+                            }
+                        }
+
+                        other => {
+                            return Err(RuntimeError::CannotIterateOnType(
+                                other.data_type()?.to_string(),
+                            ));
+                        }
                     }
 
                     Ok(ControlFlow::Continue)
@@ -193,6 +246,20 @@ impl Runtime {
 
                 _ => unreachable!("{:?}", value),
             },
+
+            Expression::MethodCall { .. } => {
+                let value = self.evaluate_expression_to_value(iterable)?;
+
+                match value {
+                    RuntimeValue::Iterator { contents, .. } => {
+                        self.execute_iteration(iterator_identifier, &contents, block)
+                    }
+
+                    other => Err(RuntimeError::CannotIterateOnType(
+                        other.data_type()?.to_string(),
+                    )),
+                }
+            }
 
             _ => todo!("cannot iterate on {:?}", iterable),
         }

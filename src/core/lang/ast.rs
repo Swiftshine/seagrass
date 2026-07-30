@@ -202,23 +202,24 @@ pub enum DataType {
     String,
     Bool,
     Reference(Box<DataType>),
+    Iterator(Box<DataType>),
     UserDefined(String),
     Array {
         data_type: Box<DataType>,
         count: usize,
     },
 }
-
-impl DataType {
-    pub fn to_string(&self) -> String {
+impl std::fmt::Display for DataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::U32 => "u32".to_string(),
-            Self::S32 => "s32".to_string(),
-            Self::String => "string".to_string(),
-            Self::Bool => "bool".to_string(),
-            Self::Reference(data_type) => format!("&{}", data_type.to_string()),
-            Self::UserDefined(user_defined_type) => user_defined_type.clone(),
-            Self::Array { data_type, count } => format!("[{}; {}]", data_type.to_string(), count),
+            Self::U32 => write!(f, "u32"),
+            Self::S32 => write!(f, "s32"),
+            Self::String => write!(f, "string"),
+            Self::Bool => write!(f, "bool"),
+            Self::Reference(data_type) => write!(f, "&{}", data_type),
+            Self::UserDefined(user_defined_type) => write!(f, "{user_defined_type}"),
+            Self::Array { data_type, count } => write!(f, "[{}; {}]", data_type, count),
+            Self::Iterator(data_type) => write!(f, "iterator<{}>", data_type),
         }
     }
 }
