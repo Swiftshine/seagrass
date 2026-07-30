@@ -266,10 +266,7 @@ impl RuntimeValue {
                 contents,
             } => Self::Array {
                 inner_data_type: inner_data_type.clone(),
-                contents: contents
-                    .iter()
-                    .cloned()
-                    .collect::<Vec<_>>()
+                contents: contents.to_vec()
                     .into_boxed_slice(),
             },
             Self::Iterator {

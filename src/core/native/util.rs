@@ -22,7 +22,7 @@ pub(crate) mod sg {
                 RuntimeValue::String(string) => print!("string: {string}"),
                 RuntimeValue::Bool(b) => print!("bool: {b}"),
                 RuntimeValue::None => {}
-                _ => print!("cannot print for type: {}", value.data_type()?.to_string()),
+                _ => print!("cannot print for type: {}", value.data_type()?),
             }
         }
 
