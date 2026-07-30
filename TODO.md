@@ -4,16 +4,6 @@ include statements
 
 vectors
 
-- dependent-length arrays might look something like this:
-
-```rs
-struct MyStruct {
-    count: u32,
-    #[counted_by(count)]
-    things: [u32]
-}
-```
-
 enums
 
 - pure, numerical-only enums
