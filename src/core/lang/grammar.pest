@@ -153,8 +153,8 @@ SingleDataType = {
     Identifier
 }
 
-ArrayType = {
-    LBracket ~ DataType ~ Semicolon ~ Integer ~ RBracket
+ArrayType = { // if the ; integer is missing then it's a dependent type
+    LBracket ~ DataType ~ (Semicolon ~ Integer)? ~ RBracket
 }
 
 ReferenceType = {
@@ -451,16 +451,7 @@ PadDirective = {
 
 StructFieldDefinition = {
     Attribute* ~
-    Identifier ~ Colon ~ StructFieldType
-}
-
-StructFieldType = {
-    DataType |
-    DependentArrayType
-}
-
-DependentArrayType = {
-    LBracket ~ DataType ~ RBracket
+    Identifier ~ Colon ~ DataType
 }
 
 StructImplBlock = {
