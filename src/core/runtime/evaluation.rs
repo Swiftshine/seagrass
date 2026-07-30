@@ -123,6 +123,28 @@ impl Runtime {
                         }
                     }
 
+                    RuntimeValue::Reference(reference) => {
+                        let dereferenced = reference.borrow();
+
+                        match &*dereferenced {
+                            RuntimeValue::Struct { definition, fields } => {
+                                if !fields.contains_key(field_identifier) {
+                                    return Err(RuntimeError::InvalidStructFieldAccess {
+                                        field_name: field_identifier.clone(),
+                                        struct_name: definition.identifier.clone(),
+                                    });
+                                }
+                            }
+
+                            other => {
+                                return Err(RuntimeError::InvalidStructFieldAccessTarget {
+                                    field: field_identifier.clone(),
+                                    data_type: other.data_type()?.to_string(),
+                                });
+                            }
+                        }
+                    }
+
                     other => {
                         return Err(RuntimeError::InvalidStructFieldAccessTarget {
                             field: field_identifier.clone(),
@@ -296,6 +318,25 @@ impl Runtime {
                             field_name: field_identifier.clone(),
                             struct_name: definition.identifier.clone(),
                         }),
+
+                    RuntimeValue::Reference(inner) => {
+                        let inner = inner.borrow();
+
+                        match &*inner {
+                            RuntimeValue::Struct { definition, fields } => fields
+                                .get(field_identifier)
+                                .cloned()
+                                .ok_or(RuntimeError::InvalidStructFieldAccess {
+                                    field_name: field_identifier.clone(),
+                                    struct_name: definition.identifier.clone(),
+                                }),
+
+                            other => Err(RuntimeError::InvalidStructFieldAccessTarget {
+                                field: field_identifier.clone(),
+                                data_type: other.data_type()?.to_string(),
+                            }),
+                        }
+                    }
 
                     other => Err(RuntimeError::InvalidStructFieldAccessTarget {
                         field: field_identifier.clone(),
