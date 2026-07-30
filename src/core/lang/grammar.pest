@@ -451,7 +451,16 @@ PadDirective = {
 
 StructFieldDefinition = {
     Attribute* ~
-    Identifier ~ Colon ~ DataType
+    Identifier ~ Colon ~ StructFieldType
+}
+
+StructFieldType = {
+    DataType |
+    DependentArrayType
+}
+
+DependentArrayType = {
+    LBracket ~ DataType ~ RBracket
 }
 
 StructImplBlock = {
