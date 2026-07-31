@@ -1,5 +1,5 @@
 use crate::core::{
-    lang::ast::{AssignmentTarget, BinaryOperator, DataType, Expression, Value},
+    lang::ast::{AssignmentTarget, BinaryOperator, DataType, Expression, UnaryOperator, Value},
     runtime::{
         Runtime, RuntimeError, RuntimeResult, RuntimeValue,
         value::{LValue, RuntimeReference},
@@ -207,6 +207,22 @@ impl Runtime {
                 self.evaluate_binary(*operator, lhs, rhs)
             }
 
+            Expression::Unary {
+                operator,
+                expression,
+            } => {
+                if matches!(operator, UnaryOperator::Reference) {
+                    let reference = self.evaluate_expression_to_reference(expression)?;
+                    Ok(RuntimeValue::Reference(reference))
+                } else if matches!(operator, UnaryOperator::Dereference) {
+                    let reference = self.evaluate_expression_to_reference(expression)?;
+                    reference.borrow().dereference()
+                } else {
+                    let value = self.evaluate_expression_to_value(expression)?;
+                    self.evaluate_unary(*operator, value)
+                }
+            }
+
             Expression::StructInitialization(init) => self.initialize_struct(init),
 
             Expression::ArrayInitialization(init) => self.initialize_array(init),
@@ -219,16 +235,6 @@ impl Runtime {
             Expression::ArrayAccess { .. } => {
                 let reference = self.evaluate_expression_to_reference(expression)?;
                 Ok(reference.borrow().copy_value())
-            }
-
-            Expression::Reference(expression) => {
-                let reference = self.evaluate_expression_to_reference(expression)?;
-                Ok(RuntimeValue::Reference(reference))
-            }
-
-            Expression::Dereference(expression) => {
-                let value = self.evaluate_expression_to_value(expression)?;
-                value.dereference()
             }
 
             Expression::MethodCall {
@@ -372,26 +378,14 @@ impl Runtime {
                     }),
                 }
             }
-
-            Expression::Dereference(expr) => {
-                let value = self.evaluate_expression_to_value(expr)?;
-                value.expect_reference()
-            }
-
             _ => Err(RuntimeError::InvalidReferenceTarget),
         }
     }
 
     fn evaluate_method_receiver(&mut self, expression: &Expression) -> RuntimeResult<RuntimeValue> {
-        match expression {
-            Expression::Reference(_) => self.evaluate_expression_to_value(expression),
-
-            Expression::Value(Value::Identifier(name)) => {
-                Ok(RuntimeValue::Reference(self.get_variable(name)?))
-            }
-
-            _ => Err(RuntimeError::InvalidReferenceTarget),
-        }
+        Ok(RuntimeValue::Reference(
+            self.evaluate_expression_to_reference(expression)?,
+        ))
     }
 
     fn evaluate_binary(
@@ -428,6 +422,21 @@ impl Runtime {
             // logical
             BinaryOperator::LogicalAnd => lhs.logical_and(rhs),
             BinaryOperator::LogicalOr => lhs.logical_or(rhs),
+        }
+    }
+
+    fn evaluate_unary(
+        &self,
+        operator: UnaryOperator,
+        value: RuntimeValue,
+    ) -> RuntimeResult<RuntimeValue> {
+        match operator {
+            UnaryOperator::Negate => value.negate(),
+            UnaryOperator::LogicalNot => value.logical_not(),
+            UnaryOperator::BitwiseNot => value.bitwise_not(),
+
+            // already handled
+            UnaryOperator::Reference | UnaryOperator::Dereference => unreachable!(),
         }
     }
 

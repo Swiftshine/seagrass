@@ -389,4 +389,54 @@ impl RuntimeValue {
             )),
         }
     }
+
+    /* unary operators */
+
+    pub fn negate(self) -> RuntimeResult<Self> {
+        match self {
+            Self::S8(v) => Ok(Self::S8(-v)),
+            Self::S16(v) => Ok(Self::S16(-v)),
+            Self::S32(v) => Ok(Self::S32(-v)),
+
+            Self::U8(_) | Self::U16(_) | Self::U32(_) | Self::Usize(_) => Err(
+                RuntimeError::UnsupportedUnaryOperation("-", self.data_type()?.to_string()),
+            ),
+
+            _ => Err(RuntimeError::UnsupportedUnaryOperation(
+                "-",
+                self.data_type()?.to_string(),
+            )),
+        }
+    }
+
+    pub fn logical_not(self) -> RuntimeResult<Self> {
+        match self {
+            Self::Bool(value) => Ok(Self::Bool(!value)),
+
+            _ => Err(RuntimeError::UnsupportedUnaryOperation(
+                "!",
+                self.data_type()?.to_string(),
+            )),
+        }
+    }
+
+    pub fn bitwise_not(self) -> RuntimeResult<Self> {
+        match self {
+            Self::S8(v) => Ok(Self::S8(!v)),
+            Self::U8(v) => Ok(Self::U8(!v)),
+
+            Self::S16(v) => Ok(Self::S16(!v)),
+            Self::U16(v) => Ok(Self::U16(!v)),
+
+            Self::S32(v) => Ok(Self::S32(!v)),
+            Self::U32(v) => Ok(Self::U32(!v)),
+
+            Self::Usize(v) => Ok(Self::Usize(!v)),
+
+            _ => Err(RuntimeError::UnsupportedUnaryOperation(
+                "~",
+                self.data_type()?.to_string(),
+            )),
+        }
+    }
 }

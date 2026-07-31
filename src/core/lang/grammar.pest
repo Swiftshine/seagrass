@@ -85,7 +85,7 @@ ArgumentList = {
 
 // Operators and tokens
 Plus            =  { "+" }
-Minus           =  { "-" }
+Subtract        =  { "-" }
 Star            =  _{ "*" }
 Multiply        =  { "*" } // <- this is explicitly for multiplication and nothing else
 Slash           =  { "/" }
@@ -119,6 +119,9 @@ OrOr        = { "||" }
 AndAnd      = { "&&" }
 ShiftLeft   = { "<<" }
 ShiftRight  = { ">>" }
+ExclamationMark = _{ "!" }
+Tilde = _{ "~" }
+Minus = _{ "-" }
 
 ComparisonOp = _{
     GreaterThanOrEqualTo |
@@ -354,7 +357,7 @@ MulOp = _{
 }
 
 AddOp = _{
-    Plus | Minus
+    Plus | Subtract
 }
 
 TypeCast = {
@@ -364,7 +367,22 @@ TypeCast = {
 Unary = {
     Reference |
     Dereference |
+    Negation |
+    LogicalNot |
+    BitwiseNot |
     Postfix
+}
+
+Negation = {
+    Minus ~ Unary
+}
+
+LogicalNot = {
+    ExclamationMark ~ Unary
+}
+
+BitwiseNot = {
+    Tilde ~ Unary
 }
 
 Reference = {

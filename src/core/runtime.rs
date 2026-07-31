@@ -74,6 +74,8 @@ pub enum RuntimeError {
         operation: &'static str,
         rhs_type: String,
     },
+    #[error("Unsupported unary operation for '{0}[{1}]'")]
+    UnsupportedUnaryOperation(&'static str, String),
     #[error(
         "Failed to apply type annotation (expected annotated type '{expected}', but the assigned value resolved to '{found}')"
     )]

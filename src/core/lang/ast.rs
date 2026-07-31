@@ -68,6 +68,10 @@ pub enum Expression {
         rhs: Box<Expression>,
         operator: BinaryOperator,
     },
+    Unary {
+        operator: UnaryOperator,
+        expression: Box<Expression>,
+    },
     StructInitialization(StructInitialization),
     ArrayInitialization(ArrayInitialization),
     StructFieldAccess {
@@ -78,8 +82,6 @@ pub enum Expression {
         expression: Box<Expression>,
         index_expression: Box<Expression>,
     },
-    Reference(Box<Expression>),
-    Dereference(Box<Expression>),
     MethodCall {
         expression: Box<Expression>,
         method_identifier: String,
@@ -124,6 +126,15 @@ pub enum BinaryOperator {
     // logical
     LogicalAnd,
     LogicalOr,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum UnaryOperator {
+    Reference,   // &expr
+    Dereference, // *expr
+    Negate,      // -expr
+    LogicalNot,  // !expr
+    BitwiseNot,  // ~expr
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -677,15 +688,15 @@ fn build_assignment_postfix(pair: Pair<Rule>) -> Result<AssignmentTarget> {
 //     build_unary(unary)
 // }
 
-fn build_dereference(pair: Pair<Rule>) -> Result<Expression> {
-    assert_eq!(pair.as_rule(), Rule::Dereference);
+// fn build_dereference(pair: Pair<Rule>) -> Result<Expression> {
+//     assert_eq!(pair.as_rule(), Rule::Dereference);
 
-    let mut inner = pair.into_inner();
+//     let mut inner = pair.into_inner();
 
-    let expression = build_unary(inner.next().unwrap())?;
+//     let expression = build_unary(inner.next().unwrap())?;
 
-    Ok(Expression::Dereference(Box::new(expression)))
-}
+//     Ok(Expression::Dereference(Box::new(expression)))
+// }
 
 fn build_binary_expression<BuildOperand, BuildOperator>(
     pair: Pair<Rule>,
@@ -813,7 +824,7 @@ fn build_addition(pair: Pair<Rule>) -> Result<Expression> {
 
     build_binary_expression(pair, build_multiplication, |rule| match rule {
         Rule::Plus => BinaryOperator::Add,
-        Rule::Minus => BinaryOperator::Subtract,
+        Rule::Subtract => BinaryOperator::Subtract,
         _ => unreachable!("{:?}", rule),
     })
 }
@@ -852,22 +863,28 @@ fn build_type_cast(pair: Pair<Rule>) -> Result<Expression> {
 }
 
 fn build_unary(pair: Pair<Rule>) -> Result<Expression> {
-    assert_eq!(pair.as_rule(), Rule::Unary);
-
     let inner = pair.into_inner().next().unwrap();
 
     match inner.as_rule() {
-        Rule::Reference => {
-            let expression = build_unary(inner.into_inner().next().unwrap())?;
-            Ok(Expression::Reference(Box::new(expression)))
-        }
-
-        Rule::Dereference => build_dereference(inner),
-
+        Rule::Reference => build_unary_op(inner, UnaryOperator::Reference),
+        Rule::Dereference => build_unary_op(inner, UnaryOperator::Dereference),
+        Rule::Negation => build_unary_op(inner, UnaryOperator::Negate),
+        Rule::LogicalNot => build_unary_op(inner, UnaryOperator::LogicalNot),
+        Rule::BitwiseNot => build_unary_op(inner, UnaryOperator::BitwiseNot),
         Rule::Postfix => build_postfix(inner),
-
         _ => unreachable!("{:?}", inner.as_rule()),
     }
+}
+
+fn build_unary_op(pair: Pair<Rule>, operator: UnaryOperator) -> Result<Expression> {
+    let mut inner = pair.into_inner();
+
+    let operand = build_unary(inner.next().unwrap())?;
+
+    Ok(Expression::Unary {
+        operator,
+        expression: Box::new(operand),
+    })
 }
 
 fn build_postfix(pair: Pair<Rule>) -> Result<Expression> {
