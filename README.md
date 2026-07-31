@@ -2,25 +2,11 @@
 
 A scripting language focused on ease of file I/O for binary file formats and filesystem utility.
 
-### Notes
-
-Q: What is Seagrass?
-
-A: Seagrass is a personal project and a work in progress; anything listed here might be subject to change or absent entirely.
-
-Q: Why does it look like Rust? Does it work the same way?
-
-A: Seagrass' syntax is based on Rust's (and is written in Rust), but that's it. It doesn't have the ownership or memory rules associated with Rust and its compiler because Seagrass, an interpreted language for inherently "quick and dirty" operations, is not meant for that.
-
-Q: Why make a scripting language for this?
-
-A: Because I utterly _despise_ using Python for binary data and because I don't want to have to make a compiled project for C++ or Rust every time I want to do something quickly.
-
 ## Installation
 
 Not available yet! Seagrass is still being worked on.
 
-## Language Implementation
+## Language Details
 
 There are several specific things that make Seagrass work the way it does.
 
@@ -94,6 +80,16 @@ struct MyStruct {
 }
 ```
 
-### References
+### Notes
 
-Functions must not return references.
+Q: What is Seagrass?
+
+A: Seagrass is a personal project and a work in progress; anything listed here might be subject to change or absent entirely.
+
+Q: Why does it look like Rust? Does it work the same way?
+
+A: Seagrass' syntax is based on Rust's (and is written in Rust), but that's it. It doesn't have the ownership or memory rules associated with Rust and its compiler because Seagrass, an interpreted language for inherently "quick and dirty" operations, is not meant for that.
+
+Q: Why make a scripting language for this?
+
+A: Because there aren't any existing _interpreted_ languages that do this well in any capacity.
