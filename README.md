@@ -2,6 +2,22 @@
 
 A scripting language focused on ease of file I/O for binary file formats and filesystem utility.
 
+Demo:
+
+```rs
+#[pod]
+struct Header {
+    magic: u32,
+    version: u16,
+    flags: u16,
+    data: u32
+}
+
+let header = sg::read<Header>("file.bin");
+header.data = 123;
+sg::write("file_2.bin", &header);
+```
+
 ## Installation
 
 Not available yet! Seagrass is still being worked on.
