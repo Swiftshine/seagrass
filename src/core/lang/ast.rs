@@ -1109,7 +1109,7 @@ fn build_padding(pair: Pair<Rule>) -> Result<usize> {
     inner.next();
 
     // Integer
-    let amount = inner.next().unwrap().as_str().parse::<usize>()?;
+    let amount = parse_usize_literal(inner.next().unwrap().as_str())?;
 
     Ok(amount)
 }

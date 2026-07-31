@@ -5,6 +5,26 @@ use crate::core::lang::{
 use anyhow::Result;
 use pest::iterators::Pair;
 
+fn parse_i32_literal(s: &str) -> Result<i32> {
+    if let Some(bits) = s.strip_prefix("0b").or_else(|| s.strip_prefix("0B")) {
+        Ok(i32::from_str_radix(bits, 2)?)
+    } else if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        Ok(i32::from_str_radix(hex, 16)?)
+    } else {
+        Ok(s.parse()?)
+    }
+}
+
+pub fn parse_usize_literal(s: &str) -> Result<usize> {
+    if let Some(bits) = s.strip_prefix("0b").or_else(|| s.strip_prefix("0B")) {
+        Ok(usize::from_str_radix(bits, 2)?)
+    } else if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        Ok(usize::from_str_radix(hex, 16)?)
+    } else {
+        Ok(s.parse()?)
+    }
+}
+
 pub fn build_value(pair: Pair<Rule>) -> Result<Value> {
     assert_eq!(pair.as_rule(), Rule::Value);
 
@@ -26,13 +46,7 @@ pub fn build_value(pair: Pair<Rule>) -> Result<Value> {
         Rule::Integer => {
             let s = inner.as_str();
 
-            let value = if let Some(hex) = s.strip_prefix("0x") {
-                i32::from_str_radix(hex, 16)?
-            } else if let Some(hex) = s.strip_prefix("0X") {
-                i32::from_str_radix(hex, 16)?
-            } else {
-                s.parse()?
-            };
+            let value = parse_i32_literal(s)?;
 
             Ok(Value::S32(value))
         }
@@ -76,13 +90,7 @@ fn build_array_type(pair: Pair<Rule>) -> Result<DataType> {
 
     let count = if let Some(count) = inner.next() {
         let s = count.as_str();
-        let count = if let Some(hex) = s.strip_prefix("0x") {
-            usize::from_str_radix(hex, 16)?
-        } else if let Some(hex) = s.strip_prefix("0X") {
-            usize::from_str_radix(hex, 16)?
-        } else {
-            s.parse()?
-        };
+        let count = parse_usize_literal(s)?;
 
         Some(count)
     } else {

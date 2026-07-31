@@ -168,15 +168,17 @@ TypeAnnotation = {
     Colon ~ DataType
 }
 
-Integer = @{
-    HexadecimalInteger |
-    DecimalInteger
-}
-
 Bool = {
     KeywordTrue | KeywordFalse
 }
 
+Integer = @{
+    BinaryInteger |
+    HexadecimalInteger |
+    DecimalInteger
+}
+
+BinaryInteger = @{ ("0b" | "0B") ~ ("0" | "1")+ }
 HexadecimalInteger = @{ ("0x" | "0X") ~ ASCII_HEX_DIGIT+ }
 DecimalInteger = @{ ASCII_DIGIT+ }
 
