@@ -19,6 +19,8 @@ pub(crate) mod sg {
                 RuntimeValue::U16(i) => print!("u16: {i}"),
                 RuntimeValue::S32(i) => print!("s32: {i}"),
                 RuntimeValue::U32(i) => print!("u32: {i}"),
+                RuntimeValue::F32(f) => print!("f32: {f}"),
+                RuntimeValue::F64(f) => print!("f64: {f}"),
                 RuntimeValue::String(string) => print!("string: {string}"),
                 RuntimeValue::Bool(b) => print!("bool: {b}"),
                 RuntimeValue::None => {}

@@ -287,6 +287,8 @@ impl Runtime {
             | DataType::U16
             | DataType::S32
             | DataType::U32
+            | DataType::F32
+            | DataType::F64
             | DataType::Bool => Ok(()),
 
             DataType::String => {
@@ -398,6 +400,16 @@ impl Runtime {
                 ByteOrder::Big => ctx.output.extend(value.to_be_bytes()),
             },
 
+            RuntimeValue::F32(value) => match byte_order {
+                ByteOrder::Little => ctx.output.extend(value.to_le_bytes()),
+                ByteOrder::Big => ctx.output.extend(value.to_be_bytes()),
+            },
+
+            RuntimeValue::F64(value) => match byte_order {
+                ByteOrder::Little => ctx.output.extend(value.to_le_bytes()),
+                ByteOrder::Big => ctx.output.extend(value.to_be_bytes()),
+            },
+
             RuntimeValue::Bool(value) => {
                 ctx.output.push(if *value { 1 } else { 0 });
             }
@@ -487,6 +499,16 @@ impl Runtime {
             DataType::U32 => Ok(RuntimeValue::U32(match byte_order {
                 ByteOrder::Little => ctx.input.as_mut().unwrap().read_u32::<LittleEndian>()?,
                 ByteOrder::Big => ctx.input.as_mut().unwrap().read_u32::<BigEndian>()?,
+            })),
+
+            DataType::F32 => Ok(RuntimeValue::F32(match byte_order {
+                ByteOrder::Little => ctx.input.as_mut().unwrap().read_f32::<LittleEndian>()?,
+                ByteOrder::Big => ctx.input.as_mut().unwrap().read_f32::<BigEndian>()?,
+            })),
+
+            DataType::F64 => Ok(RuntimeValue::F64(match byte_order {
+                ByteOrder::Little => ctx.input.as_mut().unwrap().read_f64::<LittleEndian>()?,
+                ByteOrder::Big => ctx.input.as_mut().unwrap().read_f64::<BigEndian>()?,
             })),
 
             DataType::Bool => {

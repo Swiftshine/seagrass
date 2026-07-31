@@ -76,6 +76,10 @@ impl Runtime {
 
             DataType::U32 => Ok(RuntimeValue::U32(0)),
 
+            DataType::F32 => Ok(RuntimeValue::F32(0.0)),
+
+            DataType::F64 => Ok(RuntimeValue::F64(0.0)),
+
             DataType::Usize => Ok(RuntimeValue::Usize(0)),
 
             DataType::Bool => Ok(RuntimeValue::Bool(false)),

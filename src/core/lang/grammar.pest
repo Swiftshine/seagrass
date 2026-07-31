@@ -142,7 +142,16 @@ QualifiedIdentifier = {
 }
 
 BuiltinDataType = {
-    "s8" | "u8" | "s16" | "u16" | "s32" | "u32" | "string" | "bool" | "usize"
+    "s8" |
+    "u8" |
+    "s16" |
+    "u16" |
+    "s32" |
+    "u32" |
+    "f32" |
+    "string" |
+    "bool" |
+    "usize"
 }
 
 DataType = {
@@ -182,6 +191,15 @@ BinaryInteger = @{ ("0b" | "0B") ~ ("0" | "1")+ }
 HexadecimalInteger = @{ ("0x" | "0X") ~ ASCII_HEX_DIGIT+ }
 DecimalInteger = @{ ASCII_DIGIT+ }
 
+Float = @{
+    DecimalFloat ~ FloatSuffix}
+
+DecimalFloat = @{
+    ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+
+}
+
+FloatSuffix = @{ "f" | "d" }
+
 String = @{
     "\"" ~ StringCharacter* ~ "\""
 }
@@ -203,6 +221,7 @@ EscapeSequence = {
 
 Value = {
     Bool |
+    Float |
     Integer |
     String |
     Identifier

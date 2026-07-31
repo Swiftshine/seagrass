@@ -25,6 +25,18 @@ pub fn parse_usize_literal(s: &str) -> Result<usize> {
     }
 }
 
+fn parse_f32_literal(s: &str) -> Result<f32> {
+    let s = s.strip_suffix('f').expect("f32 literal must end in 'f'");
+
+    Ok(s.parse()?)
+}
+
+fn parse_f64_literal(s: &str) -> Result<f64> {
+    let s = s.strip_suffix('d').expect("f64 literal must end in 'd'");
+
+    Ok(s.parse()?)
+}
+
 pub fn build_value(pair: Pair<Rule>) -> Result<Value> {
     assert_eq!(pair.as_rule(), Rule::Value);
 
@@ -58,6 +70,18 @@ pub fn build_value(pair: Pair<Rule>) -> Result<Value> {
                 Rule::KeywordTrue => Ok(Value::Bool(true)),
                 Rule::KeywordFalse => Ok(Value::Bool(false)),
                 _ => unreachable!("{:?}", rule),
+            }
+        }
+
+        Rule::Float => {
+            let s = inner.as_str();
+
+            if s.ends_with('f') {
+                Ok(Value::F32(parse_f32_literal(s)?))
+            } else if s.ends_with('d') {
+                Ok(Value::F64(parse_f64_literal(s)?))
+            } else {
+                unreachable!("float literal missing suffix: {}", s);
             }
         }
 
@@ -113,6 +137,8 @@ fn build_single_type(pair: Pair<Rule>) -> Result<DataType> {
         "u16" => Ok(DataType::U16),
         "s32" => Ok(DataType::S32),
         "u32" => Ok(DataType::U32),
+        "f32" => Ok(DataType::F32),
+        "f64" => Ok(DataType::F64),
         "string" => Ok(DataType::String),
         "bool" => Ok(DataType::Bool),
         other => Ok(DataType::UserDefined(other.to_string())),

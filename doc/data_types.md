@@ -11,8 +11,8 @@
 | u32        | 4            | unsigned 32-bit value       |
 | s64 (todo) | 8            | signed 64-bit value         |
 | u64 (todo) | 8            | unsigned 64-bit value       |
-| f32 (todo) | 4            | 32-bit floating-point value |
-| f64 (todo) | 8            | 64-bit floating-point value |
+| f32        | 4            | 32-bit floating-point value |
+| f64        | 8            | 64-bit floating-point value |
 
 ## Methods for composite types
 

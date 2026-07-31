@@ -454,6 +454,10 @@ impl Runtime {
 
             Value::U32(i) => Ok(RuntimeValue::U32(*i)),
 
+            Value::F32(v) => Ok(RuntimeValue::F32(*v)),
+
+            Value::F64(v) => Ok(RuntimeValue::F64(*v)),
+
             Value::Usize(i) => Ok(RuntimeValue::Usize(*i)),
 
             Value::String(string) => Ok(RuntimeValue::String(string.clone())),

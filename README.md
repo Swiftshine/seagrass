@@ -8,8 +8,6 @@ Not available yet! Seagrass is still being worked on.
 
 ## Language Details
 
-There are several specific things that make Seagrass work the way it does.
-
 ### Tags
 
 Tags modify how the language, and certain elements, may be interpreted. Tags that are applied to things such as structs and functions are called attributes. Tags that might be used include:
@@ -80,7 +78,21 @@ struct MyStruct {
 }
 ```
 
-### Notes
+### Type Notes
+
+Seagrass' type casting syntax is the same as Rust's. It also supports type coercion.
+
+Floating-point values **must** be postfixed with an `f` or `d` depdending on the type.
+
+```rs
+let a: f32 = 1.0f;
+let b: f64 = 1.0d;
+
+// not permitted due to ambiguity
+let c = 1.0;
+```
+
+## Notes
 
 Q: What is Seagrass?
 

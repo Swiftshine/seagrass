@@ -17,6 +17,9 @@ macro_rules! numeric_compare {
             (Self::S32(a), Self::S32(b)) => a $op b,
             (Self::U32(a), Self::U32(b)) => a $op b,
 
+            (Self::F32(a), Self::F32(b)) => a $op b,
+            (Self::F64(a), Self::F64(b)) => a $op b,
+
             (Self::Usize(a), Self::Usize(b)) => a $op b,
 
             _ => unreachable!(),
@@ -37,6 +40,9 @@ macro_rules! numeric_equality {
 
             (Self::S32(a), Self::S32(b)) => a $op b,
             (Self::U32(a), Self::U32(b)) => a $op b,
+
+            (Self::F32(a), Self::F32(b)) => a $op b,
+            (Self::F64(a), Self::F64(b)) => a $op b,
 
             (Self::Usize(a), Self::Usize(b)) => a $op b,
 
@@ -91,6 +97,30 @@ macro_rules! numeric_shift {
     }};
 }
 
+macro_rules! numeric_arithmetic {
+    ($lhs:expr, $rhs:expr, $op:tt) => {{
+        let (lhs, rhs) = Self::promote_numeric_pair($lhs, $rhs)?;
+
+        match (lhs, rhs) {
+            (Self::S8(a), Self::S8(b)) => Ok(Self::S8(a $op b)),
+            (Self::U8(a), Self::U8(b)) => Ok(Self::U8(a $op b)),
+
+            (Self::S16(a), Self::S16(b)) => Ok(Self::S16(a $op b)),
+            (Self::U16(a), Self::U16(b)) => Ok(Self::U16(a $op b)),
+
+            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(a $op b)),
+            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(a $op b)),
+
+            (Self::F32(a), Self::F32(b)) => Ok(Self::F32(a $op b)),
+            (Self::F64(a), Self::F64(b)) => Ok(Self::F64(a $op b)),
+
+            (Self::Usize(a), Self::Usize(b)) => Ok(Self::Usize(a $op b)),
+
+            _ => unreachable!(),
+        }
+    }};
+}
+
 impl RuntimeValue {
     /* helpers */
 
@@ -106,34 +136,6 @@ impl RuntimeValue {
             Self::U32(v) => Ok(v),
 
             Self::Usize(v) => Ok(v as u32),
-
-            _ => unreachable!(),
-        }
-    }
-
-    fn numeric_arithmetic<F32, FSize>(
-        lhs: RuntimeValue,
-        rhs: RuntimeValue,
-        op32: F32,
-        op_usize: FSize,
-    ) -> RuntimeResult<RuntimeValue>
-    where
-        F32: FnOnce(i32, i32) -> i32,
-        FSize: FnOnce(usize, usize) -> usize,
-    {
-        let (lhs, rhs) = Self::promote_numeric_pair(lhs, rhs)?;
-
-        match (lhs, rhs) {
-            (Self::S8(a), Self::S8(b)) => Ok(Self::S8(op32(a as i32, b as i32) as i8)),
-            (Self::U8(a), Self::U8(b)) => Ok(Self::U8(op32(a as i32, b as i32) as u8)),
-
-            (Self::S16(a), Self::S16(b)) => Ok(Self::S16(op32(a as i32, b as i32) as i16)),
-            (Self::U16(a), Self::U16(b)) => Ok(Self::U16(op32(a as i32, b as i32) as u16)),
-
-            (Self::S32(a), Self::S32(b)) => Ok(Self::S32(op32(a, b))),
-            (Self::U32(a), Self::U32(b)) => Ok(Self::U32(op32(a as i32, b as i32) as u32)),
-
-            (Self::Usize(a), Self::Usize(b)) => Ok(Self::Usize(op_usize(a, b))),
 
             _ => unreachable!(),
         }
@@ -161,6 +163,11 @@ impl RuntimeValue {
 
             (DataType::S8, DataType::S8) => DataType::S8,
             (DataType::U8, DataType::U8) => DataType::U8,
+
+            (DataType::F32, DataType::F32) => DataType::F32,
+            (DataType::F32, DataType::F64) => DataType::F64,
+            (DataType::F64, DataType::F32) => DataType::F64,
+            (DataType::F64, DataType::F64) => DataType::F64,
 
             // mixed signed/unsigned
             (DataType::U8, DataType::S8) | (DataType::S8, DataType::U8) => DataType::S16,
@@ -195,6 +202,8 @@ impl RuntimeValue {
             (RuntimeValue::U16(v), DataType::U32) => Ok(Self::U32(v as u32)),
             (RuntimeValue::U16(v), DataType::S32) => Ok(Self::S32(v as i32)),
 
+            (RuntimeValue::F32(v), DataType::F64) => Ok(Self::F64(v as f64)),
+
             // into usize
             (RuntimeValue::U8(v), DataType::Usize) => Ok(Self::Usize(v as usize)),
             (RuntimeValue::U16(v), DataType::Usize) => Ok(Self::Usize(v as usize)),
@@ -219,23 +228,23 @@ impl RuntimeValue {
     /* arithmetic */
 
     pub fn add(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        Self::numeric_arithmetic(self, rhs, |a, b| a + b, |a, b| a + b)
+        numeric_arithmetic!(self, rhs, +)
     }
 
     pub fn subtract(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        Self::numeric_arithmetic(self, rhs, |a, b| a - b, |a, b| a - b)
+        numeric_arithmetic!(self, rhs, -)
     }
 
     pub fn multiply(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        Self::numeric_arithmetic(self, rhs, |a, b| a * b, |a, b| a * b)
+        numeric_arithmetic!(self, rhs, *)
     }
 
     pub fn divide(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        Self::numeric_arithmetic(self, rhs, |a, b| a / b, |a, b| a / b)
+        numeric_arithmetic!(self, rhs, /)
     }
 
     pub fn modulo(self, rhs: RuntimeValue) -> RuntimeResult<Self> {
-        Self::numeric_arithmetic(self, rhs, |a, b| a % b, |a, b| a % b)
+        numeric_arithmetic!(self, rhs, %)
     }
 
     /* comparisons */

@@ -110,7 +110,15 @@ impl DataType {
     pub fn is_numeric(&self) -> bool {
         matches!(
             self,
-            Self::S8 | Self::U8 | Self::S16 | Self::U16 | Self::S32 | Self::U32 | Self::Usize
+            Self::S8
+                | Self::U8
+                | Self::S16
+                | Self::U16
+                | Self::S32
+                | Self::U32
+                | Self::F32
+                | Self::F64
+                | Self::Usize
         )
     }
 
@@ -133,7 +141,8 @@ impl DataType {
             | (Self::S16, Self::Usize)
             | (Self::U16, Self::Usize)
             | (Self::S32, Self::Usize)
-            | (Self::U32, Self::Usize) => true,
+            | (Self::U32, Self::Usize)
+            | (Self::F32, Self::F64) => true,
 
             (
                 Self::Array {
@@ -161,6 +170,8 @@ pub enum RuntimeValue {
     U16(u16),
     S32(i32),
     U32(u32),
+    F32(f32),
+    F64(f64),
     Usize(usize),
     String(String),
     Bool(bool),
@@ -187,13 +198,7 @@ impl RuntimeValue {
 
     pub fn cast_to(self, target: &DataType) -> RuntimeResult<Self> {
         match target {
-            DataType::S8
-            | DataType::U8
-            | DataType::S16
-            | DataType::U16
-            | DataType::S32
-            | DataType::U32
-            | DataType::Usize => self.cast_numeric(target),
+            _ if target.is_numeric() => self.cast_numeric(target),
 
             _ => Err(RuntimeError::InvalidCast(
                 self.data_type()?.to_string(),
@@ -203,39 +208,110 @@ impl RuntimeValue {
     }
 
     fn cast_numeric(self, target: &DataType) -> RuntimeResult<Self> {
-        let data_type = self.data_type()?;
+        let source = self.data_type()?;
 
-        let value = match self {
-            Self::S8(v) => v as i128,
-            Self::U8(v) => v as i128,
-            Self::S16(v) => v as i128,
-            Self::U16(v) => v as i128,
-            Self::S32(v) => v as i128,
-            Self::U32(v) => v as i128,
-            Self::Usize(v) => v as i128,
+        macro_rules! cast {
+            ($value:expr => $target:ident) => {
+                Ok(Self::$target($value as _))
+            };
+        }
 
-            value => {
-                return Err(RuntimeError::InvalidCast(
-                    value.data_type()?.to_string(),
-                    target.to_string(),
-                ));
-            }
-        };
+        match (self, target) {
+            /* identity */
+            (value, ty) if value.data_type()? == *ty => Ok(value),
 
-        match target {
-            DataType::S8 => Ok(Self::S8(value as i8)),
-            DataType::U8 => Ok(Self::U8(value as u8)),
+            /* s8 */
+            (Self::S8(v), DataType::U8) => cast!(v => U8),
+            (Self::S8(v), DataType::S16) => cast!(v => S16),
+            (Self::S8(v), DataType::U16) => cast!(v => U16),
+            (Self::S8(v), DataType::S32) => cast!(v => S32),
+            (Self::S8(v), DataType::U32) => cast!(v => U32),
+            (Self::S8(v), DataType::F32) => cast!(v => F32),
+            (Self::S8(v), DataType::F64) => cast!(v => F64),
+            (Self::S8(v), DataType::Usize) => cast!(v => Usize),
 
-            DataType::S16 => Ok(Self::S16(value as i16)),
-            DataType::U16 => Ok(Self::U16(value as u16)),
+            /* u8 */
+            (Self::U8(v), DataType::S8) => cast!(v => S8),
+            (Self::U8(v), DataType::S16) => cast!(v => S16),
+            (Self::U8(v), DataType::U16) => cast!(v => U16),
+            (Self::U8(v), DataType::S32) => cast!(v => S32),
+            (Self::U8(v), DataType::U32) => cast!(v => U32),
+            (Self::U8(v), DataType::F32) => cast!(v => F32),
+            (Self::U8(v), DataType::F64) => cast!(v => F64),
+            (Self::U8(v), DataType::Usize) => cast!(v => Usize),
 
-            DataType::S32 => Ok(Self::S32(value as i32)),
-            DataType::U32 => Ok(Self::U32(value as u32)),
+            /* s16 */
+            (Self::S16(v), DataType::S8) => cast!(v => S8),
+            (Self::S16(v), DataType::U8) => cast!(v => U8),
+            (Self::S16(v), DataType::U16) => cast!(v => U16),
+            (Self::S16(v), DataType::S32) => cast!(v => S32),
+            (Self::S16(v), DataType::U32) => cast!(v => U32),
+            (Self::S16(v), DataType::F32) => cast!(v => F32),
+            (Self::S16(v), DataType::F64) => cast!(v => F64),
+            (Self::S16(v), DataType::Usize) => cast!(v => Usize),
 
-            DataType::Usize => Ok(Self::Usize(value as usize)),
+            /* u16 */
+            (Self::U16(v), DataType::S8) => cast!(v => S8),
+            (Self::U16(v), DataType::U8) => cast!(v => U8),
+            (Self::U16(v), DataType::S16) => cast!(v => S16),
+            (Self::U16(v), DataType::S32) => cast!(v => S32),
+            (Self::U16(v), DataType::U32) => cast!(v => U32),
+            (Self::U16(v), DataType::F32) => cast!(v => F32),
+            (Self::U16(v), DataType::F64) => cast!(v => F64),
+            (Self::U16(v), DataType::Usize) => cast!(v => Usize),
+
+            /* s32 */
+            (Self::S32(v), DataType::S8) => cast!(v => S8),
+            (Self::S32(v), DataType::U8) => cast!(v => U8),
+            (Self::S32(v), DataType::S16) => cast!(v => S16),
+            (Self::S32(v), DataType::U16) => cast!(v => U16),
+            (Self::S32(v), DataType::U32) => cast!(v => U32),
+            (Self::S32(v), DataType::F32) => cast!(v => F32),
+            (Self::S32(v), DataType::F64) => cast!(v => F64),
+            (Self::S32(v), DataType::Usize) => cast!(v => Usize),
+
+            /* u32 */
+            (Self::U32(v), DataType::S8) => cast!(v => S8),
+            (Self::U32(v), DataType::U8) => cast!(v => U8),
+            (Self::U32(v), DataType::S16) => cast!(v => S16),
+            (Self::U32(v), DataType::U16) => cast!(v => U16),
+            (Self::U32(v), DataType::S32) => cast!(v => S32),
+            (Self::U32(v), DataType::F32) => cast!(v => F32),
+            (Self::U32(v), DataType::F64) => cast!(v => F64),
+            (Self::U32(v), DataType::Usize) => cast!(v => Usize),
+
+            /* usize */
+            (Self::Usize(v), DataType::S8) => cast!(v => S8),
+            (Self::Usize(v), DataType::U8) => cast!(v => U8),
+            (Self::Usize(v), DataType::S16) => cast!(v => S16),
+            (Self::Usize(v), DataType::U16) => cast!(v => U16),
+            (Self::Usize(v), DataType::S32) => cast!(v => S32),
+            (Self::Usize(v), DataType::U32) => cast!(v => U32),
+            (Self::Usize(v), DataType::F32) => cast!(v => F32),
+            (Self::Usize(v), DataType::F64) => cast!(v => F64),
+
+            /* f32 */
+            (Self::F32(v), DataType::S8) => cast!(v => S8),
+            (Self::F32(v), DataType::U8) => cast!(v => U8),
+            (Self::F32(v), DataType::S16) => cast!(v => S16),
+            (Self::F32(v), DataType::U16) => cast!(v => U16),
+            (Self::F32(v), DataType::S32) => cast!(v => S32),
+            (Self::F32(v), DataType::U32) => cast!(v => U32),
+            (Self::F32(v), DataType::F64) => cast!(v => F64),
+            (Self::F32(v), DataType::Usize) => cast!(v => Usize),
+
+            /* f64 */
+            (Self::F64(v), DataType::S8) => cast!(v => S8),
+            (Self::F64(v), DataType::U8) => cast!(v => U8),
+            (Self::F64(v), DataType::S16) => cast!(v => S16),
+            (Self::F64(v), DataType::U16) => cast!(v => U16),
+            (Self::F64(v), DataType::S32) => cast!(v => S32),
+            (Self::F64(v), DataType::U32) => cast!(v => U32),
+            (Self::F64(v), DataType::F32) => cast!(v => F32),
+            (Self::F64(v), DataType::Usize) => cast!(v => Usize),
 
             _ => Err(RuntimeError::InvalidCast(
-                data_type.to_string(),
+                source.to_string(),
                 target.to_string(),
             )),
         }
@@ -250,6 +326,8 @@ impl RuntimeValue {
             Self::U16(v) => Self::U16(*v),
             Self::S32(v) => Self::S32(*v),
             Self::U32(v) => Self::U32(*v),
+            Self::F32(v) => Self::F32(*v),
+            Self::F64(v) => Self::F64(*v),
             Self::Usize(v) => Self::Usize(*v),
             Self::String(s) => Self::String(s.clone()),
             Self::Bool(v) => Self::Bool(*v),
@@ -287,6 +365,8 @@ impl RuntimeValue {
             Self::U16(_) => Ok(DataType::U16),
             Self::U32(_) => Ok(DataType::U32),
             Self::S32(_) => Ok(DataType::S32),
+            Self::F32(_) => Ok(DataType::F32),
+            Self::F64(_) => Ok(DataType::F64),
             Self::Usize(_) => Ok(DataType::Usize),
             Self::String(_) => Ok(DataType::String),
             Self::Bool(_) => Ok(DataType::Bool),
@@ -334,20 +414,6 @@ impl RuntimeValue {
         }
     }
 
-    // pub fn resolve(&self) -> RuntimeValue {
-    //     // this function should only be called for struct
-    //     match self {
-    //         Self::Reference(reference) => reference.borrow().value().resolve(),
-    //         _ => self.clone(),
-    //     }
-    // }
-
-    // pub fn reference(self) -> RuntimeValue {
-    //     RuntimeValue::Reference(
-    //         Rc::new(RefCell::new(self))
-    //     )
-    // }
-
     pub fn dereference(&self) -> RuntimeResult<RuntimeValue> {
         match self {
             RuntimeValue::Reference(variable) => Ok(variable.borrow().copy_value()),
@@ -369,19 +435,6 @@ impl RuntimeValue {
         }
     }
 
-    // pub fn assert_struct(&self) -> RuntimeResult<()> {
-    //     match self {
-    //         RuntimeValue::Struct { .. } => Ok(()),
-    //         RuntimeValue::Reference(reference) => {
-    //             // the first dereference and the first dereference only must resolve to a struct
-    //             match reference.borrow().value() {
-    //                 RuntimeValue::Struct { .. } => Ok(()),
-    //                 _ => Err(RuntimeError::ExpectedStruct),
-    //             }
-    //         }
-    //         _ => Err(RuntimeError::ExpectedStruct),
-    //     }
-    // }
     pub fn expect_reference(&self) -> RuntimeResult<RuntimeReference> {
         match self {
             RuntimeValue::Reference(reference) => Ok(reference.clone()),
@@ -412,6 +465,8 @@ impl Runtime {
 
                 (RuntimeValue::U16(v), DataType::U32) => Ok(RuntimeValue::U32(v as u32)),
                 (RuntimeValue::U16(v), DataType::S32) => Ok(RuntimeValue::S32(v as i32)),
+
+                (RuntimeValue::F32(v), DataType::F64) => Ok(RuntimeValue::F64(v as f64)),
 
                 (
                     RuntimeValue::Array { contents, .. },
