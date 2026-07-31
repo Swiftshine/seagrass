@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::core::{
     lang::{ast::Program, build_program},
     runtime::{Runtime, RuntimeConfigOption},
@@ -8,7 +10,7 @@ pub mod native;
 pub mod runtime;
 
 fn execute_program(program: &Program, configs: &[RuntimeConfigOption]) -> Runtime {
-    let mut runtime = Runtime::new().with_configs(configs);
+    let mut runtime = Runtime::new(PathBuf::new()).with_configs(configs);
     let _ = runtime.execute(program);
     runtime
 }

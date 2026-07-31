@@ -11,7 +11,12 @@ pub(crate) mod value;
 
 pub use value::RuntimeValue;
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    rc::Rc,
+};
 
 use crate::core::{
     lang::ast::{AssignmentTarget, FunctionDefinition, Parameter, StructDefinition, StructImpl},
@@ -221,16 +226,12 @@ pub struct Runtime {
     builtin_methods: HashMap<BuiltinMethodTarget, HashMap<String, NativeFunction>>,
     config: RuntimeConfig,
     byte_order: ByteOrder,
-}
-
-impl Default for Runtime {
-    fn default() -> Self {
-        Self::new()
-    }
+    base_dir: PathBuf,
+    loaded_files: HashSet<PathBuf>,
 }
 
 impl Runtime {
-    pub fn new() -> Self {
+    pub fn new(base_dir: PathBuf) -> Self {
         Self {
             global_scope: RuntimeScope::new(RuntimeScopeType::Global),
             global_sub_scopes: Vec::new(),
@@ -242,6 +243,8 @@ impl Runtime {
             config: RuntimeConfig::default(),
             byte_order: ByteOrder::Little,
             builtin_methods: HashMap::new(),
+            base_dir,
+            loaded_files: HashSet::new(),
         }
     }
 

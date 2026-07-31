@@ -30,7 +30,8 @@ Keyword = {
     KeywordPad |
     KeywordFor |
     KeywordIn |
-    KeywordAs
+    KeywordAs |
+    KeywordImport
 }
 
 KeywordFn = @{ "fn" ~ KeywordBoundary }
@@ -50,6 +51,7 @@ KeywordPad = @{ "pad" ~ KeywordBoundary }
 KeywordFor = @{ "for" ~ KeywordBoundary }
 KeywordIn = @{ "in" ~ KeywordBoundary }
 KeywordAs = @{ "as" ~ KeywordBoundary }
+KeywordImport = @{ "import" ~ KeywordBoundary }
 
 // Execution
 Block = {
@@ -228,6 +230,7 @@ Value = {
 }
 
 Statement = {
+    ImportStatement ~ EOL |
     ForStatement |
     LoopStatement |
     IfStatement |
@@ -239,6 +242,10 @@ Statement = {
     Return ~ EOL |
     BreakStatement ~ EOL |
     Expression ~ EOL
+}
+
+ImportStatement = {
+    KeywordImport ~ String
 }
 
 BreakStatement = {

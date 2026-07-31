@@ -1,7 +1,12 @@
+use std::fs;
+
 use crate::core::{
-    lang::ast::{
-        Assignment, AssignmentTarget, Block, ControlStatement, Expression, Program, Return,
-        Statement,
+    lang::{
+        self,
+        ast::{
+            Assignment, AssignmentTarget, Block, ControlStatement, Expression, Program, Return,
+            Statement,
+        },
     },
     runtime::{
         ControlFlow, Runtime, RuntimeError, RuntimeResult, RuntimeValue, StatementResult,
@@ -15,13 +20,7 @@ enum IterationMode {
 }
 
 impl Runtime {
-    pub fn execute(&mut self, program: &Program) -> RuntimeResult<()> {
-        // collect functions for built-in data types
-        self.register_builtin_methods();
-
-        // collect sg:: functions
-        self.register_native_functions();
-
+    fn define_from_program(&mut self, program: &Program) -> RuntimeResult<()> {
         // collect struct and function definitions
         for statement in &program.statements {
             match statement {
@@ -38,12 +37,61 @@ impl Runtime {
             }
         }
 
+        Ok(())
+    }
+
+    pub fn define_from_file(&mut self, filename: &str) -> anyhow::Result<()> {
+        let path = self.base_dir.join(filename).canonicalize()?;
+
+        if !self.loaded_files.insert(path.clone()) {
+            return Ok(());
+        }
+
+        // save previous directory
+        let previous_base = self.base_dir.clone();
+
+        // switch to imported file's directory
+        self.base_dir = path.parent().unwrap().to_owned();
+
+        let file_contents = fs::read_to_string(&path)?;
+        let program = lang::build_program(&file_contents)?;
+        self.define_from_program(&program)?;
+
+        // restore
+        self.base_dir = previous_base;
+
+        Ok(())
+    }
+
+    pub fn execute(&mut self, program: &Program) -> RuntimeResult<()> {
+        // collect functions for built-in data types
+        self.register_builtin_methods();
+
+        // collect sg:: functions
+        self.register_native_functions();
+
+        // define things from this program
+        self.define_from_program(program)?;
+
+        for import in program
+            .statements
+            .iter()
+            .filter(|s| matches!(s, &Statement::Import(_)))
+        {
+            if let Statement::Import(filename) = import {
+                if let Err(e) = self.define_from_file(filename) {
+                    eprintln!("Error importing file: {e}");
+                }
+            }
+        }
+
         // execute normal statements
         for statement in &program.statements {
             match statement {
                 Statement::FunctionDefinition(_)
                 | Statement::StructDefinition(_)
-                | Statement::StructImpl(_) => {}
+                | Statement::StructImpl(_)
+                | Statement::Import(_) => {}
                 _ => {
                     self.execute_statement(statement)?;
                 }
@@ -51,6 +99,8 @@ impl Runtime {
         }
 
         // call main()
+        // todo! handle the case where main() is absent in the executed script but present
+        // in imports
         if self.get_function("main").is_ok() {
             self.call_function("main", vec![], &vec![])?;
         }

@@ -23,6 +23,7 @@ pub enum Statement {
     StructDefinition(StructDefinition),
     ControlStatement(ControlStatement),
     StructImpl(StructImpl),
+    Import(String),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -403,8 +404,29 @@ fn build_statement(pair: Pair<Rule>) -> Result<Statement> {
         Rule::ForStatement => Ok(Statement::ControlStatement(build_for_statement(inner)?)),
         Rule::BreakStatement => Ok(Statement::Break),
         Rule::StructImplBlock => Ok(Statement::StructImpl(build_struct_impl(inner)?)),
+        Rule::ImportStatement => Ok(Statement::Import(build_import(inner)?)),
         _ => unreachable!("{:?}", inner.as_rule()),
     }
+}
+
+fn build_import(pair: Pair<Rule>) -> Result<String> {
+    assert_eq!(pair.as_rule(), Rule::ImportStatement);
+
+    let mut inner = pair.into_inner();
+
+    // KeywordImport
+    inner.next();
+
+    // String
+    Ok(inner
+        .next()
+        .unwrap()
+        .as_str()
+        .strip_prefix("\"")
+        .unwrap()
+        .strip_suffix("\"")
+        .unwrap()
+        .to_string())
 }
 
 fn build_struct_impl(pair: Pair<Rule>) -> Result<StructImpl> {
