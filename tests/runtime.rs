@@ -5,6 +5,7 @@ mod runtime {
     mod control_flow;
     mod expressions;
     mod functions;
+    mod operators;
     mod references;
     mod scopes;
     mod structs;

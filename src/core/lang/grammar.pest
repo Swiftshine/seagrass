@@ -103,7 +103,7 @@ LBracket        = _{ "[" }
 RBracket        = _{ "]" }
 Pound           = _{ "#" }
 Hashtag         = _{ Pound }
-Ampersand       = _{ "&" }
+Ampersand       = _{ "&" ~ !"&" }
 GreaterThan     = { ">" }
 LessThan        = { "<" }
 EqualTo         = { "==" }
@@ -114,7 +114,7 @@ DotDot = { ".." }
 Percent     = { "%" }
 Pipe        = { "|" }
 Caret       = { "^" }
-Amp         = { "&" }   // bitwise AND
+Amp         = { "&" ~ !"&" }   // bitwise AND
 OrOr        = { "||" }
 AndAnd      = { "&&" }
 ShiftLeft   = { "<<" }
