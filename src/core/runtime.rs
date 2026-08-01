@@ -105,6 +105,24 @@ pub enum RuntimeError {
     CannotIterateOnType(String),
     #[error("Cannot cast a '{0}' to a '{1}'")]
     InvalidCast(String, String),
+    #[error("Cannot default-initialize {0} beacuse it is native to the sg:: library")]
+    CannotDefaultInitializeSGType(String),
+    #[error("Native function {function_name} expected arguments [{expected}], but found {found}")]
+    MissingNativeArguments {
+        function_name: &'static str,
+        expected: String,
+        found: usize,
+    },
+    #[error(
+        "Native function {function_name} expected generic arguments [{expected}], but found {found}"
+    )]
+    MissingNativeGenerics {
+        function_name: &'static str,
+        expected: String,
+        found: usize,
+    },
+    #[error("Cannot determine size of type '{0}'")]
+    CannotDetermineDataTypeSize(String),
 
     // Semantic errors
     #[error("Incomplete struct initialization for '{0}'")]

@@ -2,6 +2,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::{
     lang::ast::{DataType, StructDefinition},
+    native::nativeobject::RuntimeNativeObject,
     runtime::{Runtime, RuntimeError, RuntimeResult},
 };
 
@@ -180,6 +181,7 @@ pub enum RuntimeValue {
         fields: HashMap<String, RuntimeReference>,
     },
     Reference(RuntimeReference),
+    NativeObject(RuntimeNativeObject),
     // ik this looks identical to Array but they are different for a reason
     Iterator {
         inner_data_type: DataType,
@@ -339,6 +341,7 @@ impl RuntimeValue {
                     .collect(),
             },
             Self::Reference(r) => Self::Reference(r.clone()),
+            Self::NativeObject(obj) => Self::NativeObject(obj.clone()),
             Self::Array {
                 inner_data_type,
                 contents,
@@ -384,6 +387,8 @@ impl RuntimeValue {
             Self::Reference(variable) => Ok(DataType::Reference(Box::new(
                 variable.borrow().data_type()?,
             ))),
+
+            Self::NativeObject(obj) => Ok(obj.borrow().data_type()),
 
             Self::Iterator {
                 inner_data_type, ..

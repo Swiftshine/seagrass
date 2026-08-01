@@ -1,4 +1,4 @@
-## Built-In Data Types
+## Primitive Data Types
 
 | Name       | Size (bytes) | Description                 |
 | ---------- | ------------ | --------------------------- |
@@ -20,3 +20,11 @@
 
 - `.iter()`
     - Returns an array containing references to each value within the original array.
+
+## Built-In Data Types
+
+These data types can only be constructed with methods.
+
+| Name             | Accessible With | Description    |
+| ---------------- | --------------- | -------------- |
+| `sg::FileHandle` | `sg::open`      | A file handle. |

@@ -437,7 +437,7 @@ ArrayAccess = {
 
 // distinct from FunctionCall; a method here is a function attached to a struct
 MethodCall = {
-    Dot ~ Identifier ~ LParen ~ ArgumentList? ~ RParen
+    Dot ~ Identifier ~ GenericArguments? ~ LParen ~ ArgumentList? ~ RParen
 }
 
 FieldAccess = {

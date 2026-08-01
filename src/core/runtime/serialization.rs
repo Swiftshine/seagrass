@@ -10,6 +10,160 @@ use crate::core::{
     runtime::{Runtime, RuntimeError, RuntimeResult, RuntimeValue, value::RuntimeReference},
 };
 
+impl DataType {
+    pub fn static_size(&self, runtime: &Runtime) -> RuntimeResult<usize> {
+        match self {
+            Self::S8 | Self::U8 | Self::Bool => Ok(1),
+            Self::S16 | Self::U16 => Ok(2),
+            Self::S32 | Self::U32 | Self::F32 => Ok(4),
+            Self::F64 => Ok(8),
+
+            Self::Array {
+                inner_data_type,
+                count,
+            } => {
+                let count =
+                    count.ok_or(RuntimeError::CannotDetermineDataTypeSize(self.to_string()))?;
+
+                Ok(inner_data_type.static_size(runtime)? * count)
+            }
+
+            Self::Iterator(_)
+            | Self::String
+            | Self::Usize
+            | Self::Reference(_)
+            | Self::NativeObject(_) => {
+                Err(RuntimeError::CannotDetermineDataTypeSize(self.to_string()))
+            }
+
+            Self::UserDefined(struct_name) => {
+                let struct_definition = runtime.get_struct_definition(struct_name)?;
+
+                if !struct_definition.is_declared_pod() {
+                    return Err(RuntimeError::CannotDetermineDataTypeSize(self.to_string()));
+                }
+
+                let mut size = 0;
+
+                for member in &struct_definition.members {
+                    match member {
+                        StructMember::Padding(pad) => size += *pad,
+
+                        StructMember::Field(field) => {
+                            // strings are only fixed-size if explicitly ascii serialized,
+                            // but even, then we don't know the *actual* length,
+                            // so we say that they don't have a statically known size
+
+                            if let Some(alignment) = field.alignment()? {
+                                let remainder = size % alignment;
+
+                                if remainder != 0 {
+                                    size += alignment - remainder;
+                                }
+                            }
+
+                            size += field.data_type.static_size(runtime)?;
+                        }
+                    }
+                }
+
+                Ok(size)
+            }
+        }
+    }
+}
+
+impl RuntimeValue {
+    pub fn serialized_size(&self, runtime: &Runtime) -> RuntimeResult<usize> {
+        match self {
+            RuntimeValue::S8(_) | RuntimeValue::U8(_) | RuntimeValue::Bool(_) => Ok(1),
+
+            RuntimeValue::S16(_) | RuntimeValue::U16(_) => Ok(2),
+
+            RuntimeValue::S32(_) | RuntimeValue::U32(_) | RuntimeValue::F32(_) => Ok(4),
+
+            RuntimeValue::F64(_) => Ok(8),
+
+            RuntimeValue::String(value) => {
+                // strings serialize as null-terminated UTF-8
+                Ok(value.len() + 1)
+            }
+
+            RuntimeValue::Array { contents, .. } => {
+                let mut size = 0;
+
+                for value in contents {
+                    size += value.borrow().serialized_size(runtime)?;
+                }
+
+                Ok(size)
+            }
+
+            RuntimeValue::Struct { definition, fields } => {
+                if !definition.is_declared_pod() {
+                    return Err(RuntimeError::NonPODType(definition.identifier.clone()));
+                }
+
+                let mut size = 0;
+
+                for member in &definition.members {
+                    match member {
+                        StructMember::Padding(count) => {
+                            size += *count;
+                        }
+
+                        StructMember::Field(field) => {
+                            if let Some(alignment) = field.alignment()? {
+                                let remainder = size % alignment;
+
+                                if remainder != 0 {
+                                    size += alignment - remainder;
+                                }
+                            }
+
+                            let value = fields.get(&field.identifier).ok_or_else(|| {
+                                RuntimeError::InvalidStructFieldAccess {
+                                    field_name: field.identifier.clone(),
+                                    struct_name: definition.identifier.clone(),
+                                }
+                            })?;
+
+                            let value = value.borrow();
+
+                            if matches!(*value, RuntimeValue::String(_)) {
+                                match field.string_serialization()? {
+                                    Some(StringSerialization::Ascii) => {
+                                        size += match &*value {
+                                            RuntimeValue::String(string) => string.len() + 1,
+                                            _ => unreachable!(),
+                                        };
+
+                                        continue;
+                                    }
+
+                                    None => {}
+                                }
+                            }
+
+                            size += value.serialized_size(runtime)?;
+                        }
+                    }
+                }
+
+                Ok(size)
+            }
+
+            RuntimeValue::None
+            | RuntimeValue::Usize(_)
+            | RuntimeValue::Iterator { .. }
+            | RuntimeValue::Reference(_)
+            | RuntimeValue::NativeObject(_) => Err(RuntimeError::CannotDetermineDataTypeSize(
+                self.data_type()?.to_string(),
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ByteOrder {
     Little,
@@ -299,9 +453,10 @@ impl Runtime {
                 }
             }
 
-            DataType::Reference(_) | DataType::Iterator(_) | DataType::Usize => {
-                Err(RuntimeError::NonPODType(data_type.to_string()))
-            }
+            DataType::Reference(_)
+            | DataType::Iterator(_)
+            | DataType::Usize
+            | DataType::NativeObject(_) => Err(RuntimeError::NonPODType(data_type.to_string())),
 
             DataType::Array {
                 inner_data_type: data_type,

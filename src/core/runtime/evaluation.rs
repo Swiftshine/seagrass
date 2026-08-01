@@ -237,12 +237,8 @@ impl Runtime {
                 Ok(reference.borrow().copy_value())
             }
 
-            Expression::MethodCall {
-                expression,
-                method_identifier,
-                arguments,
-            } => {
-                let value = self.evaluate_method_receiver(expression)?;
+            Expression::MethodCall(method) => {
+                let value = self.evaluate_method_receiver(&method.expression)?;
                 value.assert_reference()?;
 
                 let data_type = if value.is_reference() {
@@ -254,29 +250,46 @@ impl Runtime {
                 let data_type_identifier = data_type.to_string();
                 match data_type {
                     DataType::Array { .. } => {
-                        let args = arguments
+                        let args = method
+                            .arguments
                             .iter()
                             .flat_map(|expr| self.evaluate_expression_to_value(expr))
                             .collect();
 
                         self.invoke_method_for_array(
                             data_type.clone(),
-                            method_identifier,
+                            &method.identifier,
                             value,
                             args,
                         )
                     }
                     DataType::UserDefined(_) => {
-                        let args = arguments
+                        let args = method
+                            .arguments
                             .iter()
                             .flat_map(|expr| self.evaluate_expression_to_value(expr))
                             .collect();
 
                         self.invoke_method_for_struct(
                             &data_type_identifier,
-                            method_identifier,
+                            &method.identifier,
                             value,
                             args,
+                        )
+                    }
+                    DataType::NativeObject(_) => {
+                        let args = method
+                            .arguments
+                            .iter()
+                            .map(|expr| self.evaluate_expression_to_value(expr))
+                            .collect::<RuntimeResult<Vec<_>>>()?;
+
+                        self.invoke_method_for_native_object(
+                            data_type.clone(),
+                            &method.identifier,
+                            value,
+                            args,
+                            &method.generics,
                         )
                     }
                     _ => Err(RuntimeError::CannotInvokeMethodOnType(data_type_identifier)),

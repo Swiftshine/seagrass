@@ -119,6 +119,10 @@ impl Runtime {
 
                 Ok(RuntimeValue::Struct { definition, fields })
             }
+
+            DataType::NativeObject(data_type_string) => Err(
+                RuntimeError::CannotDefaultInitializeSGType(data_type_string.clone()),
+            ),
         }
     }
 

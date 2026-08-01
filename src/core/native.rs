@@ -4,13 +4,14 @@ use crate::core::{
     lang::ast::DataType,
     native::builtin::sg,
     runtime::{
-        Runtime, RuntimeValue,
+        Runtime, RuntimeError, RuntimeResult, RuntimeValue,
         functions::{NativeFunction, RuntimeFunction},
     },
 };
 
 pub mod builtin;
 pub mod fs;
+pub mod nativeobject;
 pub mod util;
 
 #[derive(Debug)]
@@ -32,11 +33,44 @@ impl<'a> NativeFunctionContext<'a> {
             generics,
         }
     }
+
+    pub fn assert_arguments(
+        &self,
+        function_name: &'static str,
+        arg_names: &[&'static str],
+    ) -> RuntimeResult<()> {
+        if self.arguments.len() < arg_names.len() {
+            return Err(RuntimeError::MissingNativeArguments {
+                function_name,
+                expected: arg_names.join(", "),
+                found: self.arguments.len(),
+            });
+        }
+
+        Ok(())
+    }
+
+    pub fn assert_generics(
+        &self,
+        function_name: &'static str,
+        generic_names: &[&'static str],
+    ) -> RuntimeResult<()> {
+        if self.generics.len() < generic_names.len() {
+            return Err(RuntimeError::MissingNativeGenerics {
+                function_name,
+                expected: generic_names.join(", "),
+                found: self.generics.len(),
+            });
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Hash, Debug, Eq, PartialEq)]
 pub enum BuiltinMethodTarget {
     Array,
+    NativeObject(String),
 }
 
 impl Runtime {
@@ -48,11 +82,12 @@ impl Runtime {
     }
 
     pub fn register_native_functions(&mut self) {
-        let pairs: [(&str, NativeFunction); 4] = [
+        let pairs: [(&str, NativeFunction); _] = [
             ("sg::print", util::sg::print),
             ("sg::set_byte_order", util::sg::set_byte_order),
             ("sg::write", fs::sg::write),
             ("sg::read", fs::sg::read),
+            ("sg::open_file", fs::sg::open_file),
         ];
 
         for (identifier, func) in pairs {
@@ -69,19 +104,72 @@ impl Runtime {
     }
 
     pub fn register_builtin_methods(&mut self) {
-        self.builtin_methods_mut()
-            .insert(BuiltinMethodTarget::Array, HashMap::new());
+        let types = [
+            BuiltinMethodTarget::Array,
+            BuiltinMethodTarget::NativeObject("sg::FileHandle".to_string()),
+        ];
 
-        let pairs: [(&str, NativeFunction); 1] = [("iter", sg::arrays::array_iterator)];
-
-        for (identifier, func) in pairs {
-            Self::register_builtin(
-                self.builtin_methods_mut()
-                    .get_mut(&BuiltinMethodTarget::Array)
-                    .unwrap(),
-                identifier,
-                func,
-            );
+        for item in types {
+            self.builtin_methods_mut().insert(item, HashMap::new());
         }
+
+        let tuples: [(BuiltinMethodTarget, &str, NativeFunction); _] = [
+            (
+                BuiltinMethodTarget::Array,
+                "iter",
+                sg::arrays::array_iterator,
+            ),
+            (
+                BuiltinMethodTarget::NativeObject("sg::FileHandle".to_string()),
+                "read",
+                fs::sg::native_file::read,
+            ),
+            (
+                BuiltinMethodTarget::NativeObject("sg::FileHandle".to_string()),
+                "read_value",
+                fs::sg::native_file::read_value,
+            ),
+        ];
+
+        for (target, identifier, func) in tuples {
+            let map = self.builtin_methods_mut().get_mut(&target).unwrap();
+
+            Self::register_builtin(map, identifier, func);
+        }
+    }
+
+    pub fn invoke_method_for_native_object(
+        &mut self,
+        data_type: DataType,
+        method_identifier: &String,
+        object_reference: RuntimeValue,
+        mut args: Vec<RuntimeValue>,
+        generics: &Vec<DataType>,
+    ) -> RuntimeResult<RuntimeValue> {
+        object_reference.assert_reference()?;
+
+        let identifier = match &data_type {
+            DataType::NativeObject(name) => name.clone(),
+
+            _ => {
+                return Err(RuntimeError::CannotInvokeMethodOnType(
+                    data_type.to_string(),
+                ));
+            }
+        };
+
+        let func = *self
+            .builtin_methods()
+            .get(&BuiltinMethodTarget::NativeObject(identifier.clone()))
+            .and_then(|map| map.get(method_identifier))
+            .ok_or_else(|| RuntimeError::NotABuiltInMethod {
+                method: method_identifier.clone(),
+                data_type: identifier,
+            })?;
+
+        args.insert(0, object_reference);
+        let context = NativeFunctionContext::new(self, args, generics);
+
+        func(context)
     }
 }

@@ -83,11 +83,7 @@ pub enum Expression {
         expression: Box<Expression>,
         index_expression: Box<Expression>,
     },
-    MethodCall {
-        expression: Box<Expression>,
-        method_identifier: String,
-        arguments: Vec<Expression>,
-    },
+    MethodCall(MethodCall),
     Range {
         start: Box<Expression>,
         end: Box<Expression>,
@@ -197,6 +193,14 @@ pub struct FunctionCall {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct MethodCall {
+    pub expression: Box<Expression>,
+    pub identifier: String,
+    pub arguments: Vec<Expression>,
+    pub generics: Vec<DataType>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     S8(i8),
     U8(u8),
@@ -234,6 +238,7 @@ pub enum DataType {
     Reference(Box<DataType>),
     Iterator(Box<DataType>),
     UserDefined(String),
+    NativeObject(String),
     Array {
         inner_data_type: Box<DataType>,
         count: Option<usize>,
@@ -255,6 +260,7 @@ impl std::fmt::Display for DataType {
             Self::Bool => write!(f, "bool"),
             Self::Usize => write!(f, "usize"),
             Self::Reference(data_type) => write!(f, "&{}", data_type),
+            Self::NativeObject(data_type_string) => write!(f, "[NATIVE]: {data_type_string}"),
             Self::UserDefined(user_defined_type) => write!(f, "{user_defined_type}"),
             Self::Array {
                 inner_data_type: data_type,
@@ -922,11 +928,10 @@ fn build_postfix(pair: Pair<Rule>) -> Result<Expression> {
 
     for pair in inner {
         let rule = pair.as_rule();
-        let mut inner = pair.into_inner();
 
         match rule {
             Rule::FieldAccess => {
-                let field = inner.next().unwrap().to_string();
+                let field = pair.into_inner().next().unwrap().to_string();
 
                 expr = Expression::StructFieldAccess {
                     expression: Box::new(expr),
@@ -935,24 +940,13 @@ fn build_postfix(pair: Pair<Rule>) -> Result<Expression> {
             }
 
             Rule::MethodCall => {
-                let method_identifier = inner.next().unwrap().to_string();
-
-                // ArgumentList?
-                let arguments = match inner.peek().map(|p| p.as_rule()) {
-                    Some(Rule::ArgumentList) => build_argument_list(inner.next().unwrap())?,
-                    _ => Vec::new(),
-                };
-
-                expr = Expression::MethodCall {
-                    expression: Box::new(expr),
-                    method_identifier,
-                    arguments,
-                }
+                expr = Expression::MethodCall(build_method_call(pair, Box::new(expr))?)
             }
 
             Rule::ArrayAccess => {
                 // Expression
-                let index_expression = Box::new(build_expression(inner.next().unwrap())?);
+                let index_expression =
+                    Box::new(build_expression(pair.into_inner().next().unwrap())?);
 
                 expr = Expression::ArrayAccess {
                     expression: Box::new(expr),
@@ -1353,6 +1347,31 @@ fn build_function_call(pair: Pair<Rule>) -> Result<FunctionCall> {
 
     Ok(FunctionCall {
         identifier,
+        arguments,
+        generics,
+    })
+}
+
+pub fn build_method_call(pair: Pair<Rule>, expression: Box<Expression>) -> Result<MethodCall> {
+    assert_eq!(pair.as_rule(), Rule::MethodCall);
+
+    let mut inner = pair.into_inner();
+
+    // Identifier
+    let method_identifier = inner.next().unwrap().to_string();
+
+    // GenericArguments?
+    let generics = collect_generics(&mut inner)?;
+
+    // ArgumentList?
+    let arguments = match inner.peek().map(|p| p.as_rule()) {
+        Some(Rule::ArgumentList) => build_argument_list(inner.next().unwrap())?,
+        _ => Vec::new(),
+    };
+
+    Ok(MethodCall {
+        expression,
+        identifier: method_identifier,
         arguments,
         generics,
     })
