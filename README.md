@@ -21,6 +21,7 @@ header.data = 123;
 
 sg::write("file_2.bin", &header);
 
+handle.close();
 handle.delete();
 ```
 
