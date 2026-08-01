@@ -13,9 +13,15 @@ struct Header {
     data: u32
 }
 
-let header = sg::read<Header>("file.bin");
+let handle = sg::open("file.bin");
+
+let header = handle.read<Header>();
+
 header.data = 123;
+
 sg::write("file_2.bin", &header);
+
+handle.delete();
 ```
 
 ## Installation
