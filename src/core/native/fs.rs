@@ -2,7 +2,6 @@ pub(crate) mod sg {
     use crate::core::{
         native::{
             NativeFunctionContext,
-            fs::sg,
             nativeobject::{NativeObject, sg::FileHandle},
         },
         runtime::{RuntimeError, RuntimeResult, value::RuntimeValue},
@@ -71,27 +70,34 @@ pub(crate) mod sg {
         let file = std::fs::File::open(filename)?;
 
         Ok(RuntimeValue::NativeObject(Rc::new(RefCell::new(
-            NativeObject::File(sg::FileHandle::new(file)),
+            NativeObject::File(Rc::new(RefCell::new(FileHandle::new(
+                filename.into(),
+                file,
+            )))),
         ))))
     }
 
-    pub(crate) mod native_file {
+    pub(crate) mod file_handle {
         use crate::core::{
-            native::{NativeFunctionContext, nativeobject::NativeObject},
+            native::{
+                NativeFunctionContext,
+                nativeobject::{NativeObject, sg::FileHandle},
+            },
             runtime::{RuntimeError, RuntimeResult, RuntimeValue},
         };
-        use std::io::Read;
 
-        pub fn read(context: NativeFunctionContext) -> RuntimeResult<RuntimeValue> {
-            context.assert_generics("sg::NativeFile::read", &["T"])?;
+        use std::{cell::RefCell, io::Read, rc::Rc};
 
-            let file = match &context.arguments[0] {
+        fn get_file_handle(
+            context: &NativeFunctionContext,
+        ) -> RuntimeResult<Rc<RefCell<FileHandle>>> {
+            let object = match &context.arguments[0] {
                 RuntimeValue::Reference(reference) => match &*reference.borrow() {
                     RuntimeValue::NativeObject(object) => object.clone(),
 
                     other => {
                         return Err(RuntimeError::AnnotationError {
-                            expected: "NativeFile".to_string(),
+                            expected: "sg::FileHandle".to_string(),
                             found: other.data_type()?.to_string(),
                         });
                     }
@@ -101,63 +107,87 @@ pub(crate) mod sg {
 
                 other => {
                     return Err(RuntimeError::AnnotationError {
-                        expected: "NativeFile".to_string(),
+                        expected: "sg::FileHandle".to_string(),
                         found: other.data_type()?.to_string(),
                     });
                 }
             };
 
-            let mut object = file.borrow_mut();
+            match &*object.borrow() {
+                NativeObject::File(handle) => Ok(handle.clone()),
+            }
+        }
 
-            let NativeObject::File(native_file) = &mut *object;
+        pub fn read(context: NativeFunctionContext) -> RuntimeResult<RuntimeValue> {
+            context.assert_generics("sg::FileHandle::read", &["T"])?;
+
+            let handle = get_file_handle(&context)?;
 
             let mut bytes = Vec::new();
 
-            native_file.file().borrow_mut().read_to_end(&mut bytes)?;
+            {
+                let handle = handle.borrow();
+                let file = handle.file()?;
+
+                file.borrow_mut().read_to_end(&mut bytes)?;
+            }
 
             context.runtime.deserialize(&context.generics[0], &bytes)
         }
 
         pub fn read_value(context: NativeFunctionContext) -> RuntimeResult<RuntimeValue> {
-            context.assert_generics("sg::NativeFile::read_value", &["T"])?;
-
-            let file = match &context.arguments[0] {
-                RuntimeValue::Reference(reference) => match &*reference.borrow() {
-                    RuntimeValue::NativeObject(object) => object.clone(),
-
-                    other => {
-                        return Err(RuntimeError::AnnotationError {
-                            expected: "NativeFile".to_string(),
-                            found: other.data_type()?.to_string(),
-                        });
-                    }
-                },
-
-                RuntimeValue::NativeObject(object) => object.clone(),
-
-                other => {
-                    return Err(RuntimeError::AnnotationError {
-                        expected: "NativeFile".to_string(),
-                        found: other.data_type()?.to_string(),
-                    });
-                }
-            };
+            context.assert_generics("sg::FileHandle::read_value", &["T"])?;
 
             let data_type = &context.generics[0];
-
             let size = data_type.static_size(context.runtime)?;
 
             let mut bytes = vec![0u8; size];
 
             {
-                let mut object = file.borrow_mut();
+                let handle = get_file_handle(&context)?;
+                let file = handle.borrow().file()?;
 
-                let NativeObject::File(native_file) = &mut *object;
-
-                native_file.file().borrow_mut().read_exact(&mut bytes)?;
+                file.borrow_mut().read_exact(&mut bytes)?;
             }
 
             context.runtime.deserialize(data_type, &bytes)
+        }
+
+        pub fn rename(context: NativeFunctionContext) -> RuntimeResult<RuntimeValue> {
+            context.assert_arguments("sg::FileHandle::rename", &["new_path: string"])?;
+
+            let handle = get_file_handle(&context)?;
+
+            let new_path = match &context.arguments[1] {
+                RuntimeValue::String(path) => path.clone(),
+
+                other => {
+                    return Err(RuntimeError::AnnotationError {
+                        expected: "string".to_string(),
+                        found: other.data_type()?.to_string(),
+                    });
+                }
+            };
+
+            let mut handle = handle.borrow_mut();
+
+            std::fs::rename(handle.path(), &new_path)?;
+
+            handle.set_path(new_path.into());
+
+            Ok(RuntimeValue::None)
+        }
+
+        pub fn close(context: NativeFunctionContext) -> RuntimeResult<RuntimeValue> {
+            let handle = get_file_handle(&context)?;
+            handle.borrow_mut().close();
+            Ok(RuntimeValue::None)
+        }
+
+        pub fn delete(context: NativeFunctionContext) -> RuntimeResult<RuntimeValue> {
+            let file = get_file_handle(&context)?;
+            file.borrow().delete()?;
+            Ok(RuntimeValue::None)
         }
     }
 }

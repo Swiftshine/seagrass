@@ -195,6 +195,10 @@ pub enum RuntimeError {
         "Struct field '{0}' not read before trying to use the \"counted_by\" attribute or is non-numeric"
     )]
     CountedByFail(String),
+
+    // Misc. native errors
+    #[error("Native struct error: {0}")]
+    NativeError(&'static str),
 }
 
 impl RuntimeError {

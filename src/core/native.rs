@@ -119,15 +119,31 @@ impl Runtime {
                 "iter",
                 sg::arrays::array_iterator,
             ),
+            /* sg::FileHandle */
+            (
+                BuiltinMethodTarget::NativeObject("sg::FileHandle".to_string()),
+                "close",
+                fs::sg::file_handle::close,
+            ),
+            (
+                BuiltinMethodTarget::NativeObject("sg::FileHandle".to_string()),
+                "delete",
+                fs::sg::file_handle::delete,
+            ),
             (
                 BuiltinMethodTarget::NativeObject("sg::FileHandle".to_string()),
                 "read",
-                fs::sg::native_file::read,
+                fs::sg::file_handle::read,
             ),
             (
                 BuiltinMethodTarget::NativeObject("sg::FileHandle".to_string()),
                 "read_value",
-                fs::sg::native_file::read_value,
+                fs::sg::file_handle::read_value,
+            ),
+            (
+                BuiltinMethodTarget::NativeObject("sg::FileHandle".to_string()),
+                "rename",
+                fs::sg::file_handle::rename,
             ),
         ];
 
