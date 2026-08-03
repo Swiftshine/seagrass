@@ -132,6 +132,16 @@ impl Runtime {
             ),
             (
                 BuiltinMethodTarget::NativeObject("sg::FileHandle".to_string()),
+                "new",
+                fs::sg::file_handle::new,
+            ),
+            (
+                BuiltinMethodTarget::NativeObject("sg::FileHandle".to_string()),
+                "open",
+                fs::sg::file_handle::open,
+            ),
+            (
+                BuiltinMethodTarget::NativeObject("sg::FileHandle".to_string()),
                 "read",
                 fs::sg::file_handle::read,
             ),

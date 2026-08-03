@@ -48,11 +48,20 @@ pub mod sg {
     }
 
     impl FileHandle {
-        pub fn new(path: PathBuf, file: std::fs::File) -> Self {
+        pub fn new_opened(path: PathBuf, file: std::fs::File) -> Self {
             Self {
                 file: Some(Rc::new(RefCell::new(file))),
                 path,
             }
+        }
+
+        pub fn new(path: PathBuf) -> Self {
+            Self { file: None, path }
+        }
+
+        pub fn open(&mut self) -> RuntimeResult<()> {
+            self.file = Some(Rc::new(RefCell::new(std::fs::File::open(&self.path)?)));
+            Ok(())
         }
 
         pub fn close(&mut self) {

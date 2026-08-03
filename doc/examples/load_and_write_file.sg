@@ -1,0 +1,11 @@
+#[pod]
+struct MyStruct {
+    field_1: u32,
+    field_2: u16,
+    pad(2), // padding is never implicit
+    field_3: u32
+}
+
+let my_struct = sg::read<MyStruct>("path/to/file.bin");
+my_struct.field_1 = 123;
+sg::write("path/to/file.bin", &my_struct);

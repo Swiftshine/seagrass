@@ -70,7 +70,7 @@ pub(crate) mod sg {
         let file = std::fs::File::open(filename)?;
 
         Ok(RuntimeValue::NativeObject(Rc::new(RefCell::new(
-            NativeObject::File(Rc::new(RefCell::new(FileHandle::new(
+            NativeObject::File(Rc::new(RefCell::new(FileHandle::new_opened(
                 filename.into(),
                 file,
             )))),
@@ -188,6 +188,32 @@ pub(crate) mod sg {
             let file = get_file_handle(&context)?;
             file.borrow().delete()?;
             Ok(RuntimeValue::None)
+        }
+
+        pub fn open(context: NativeFunctionContext) -> RuntimeResult<RuntimeValue> {
+            let file = get_file_handle(&context)?;
+            file.borrow_mut().open()?;
+            Ok(RuntimeValue::None)
+        }
+
+        pub fn new(context: NativeFunctionContext) -> RuntimeResult<RuntimeValue> {
+            context.assert_arguments("sg::FileHandle::new", &["filepath: string"])?;
+
+            let filename = match &context.arguments[0] {
+                RuntimeValue::String(value) => value,
+                other => {
+                    return Err(RuntimeError::AnnotationError {
+                        expected: "string".to_string(),
+                        found: other.data_type()?.to_string(),
+                    });
+                }
+            };
+
+            let object = RuntimeValue::NativeObject(Rc::new(RefCell::new(NativeObject::File(
+                Rc::new(RefCell::new(FileHandle::new(filename.into()))),
+            ))));
+
+            Ok(object)
         }
     }
 }

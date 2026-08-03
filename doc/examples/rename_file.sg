@@ -1,0 +1,2 @@
+let file = sg::FileHandle::new("file_1.bin");
+file.rename("file_2.bin");
