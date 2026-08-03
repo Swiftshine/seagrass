@@ -6,17 +6,17 @@
 - `.delete()`
   - Deletes the file. The file handle must be closed first.
 
-- `new(file_path: string)`
+- `new(file_path: string) -> sg::FileHandle`
   - Creates a closed file handle to `file_path`.
 
 - `.open()`
   - Opens the file handle.
   - The effects of `FileHandle::new()` and `FileHandle::.open()` can be achieved in one function call through `sg::open_file()`.
 
-- `.read<auto T>()`
+- `.read<auto T>() -> T`
   - Reads a whole `T` in one go.
 
-- `.read_value<auto T>()`
+- `.read_value<auto T>() -> T`
   - Reads a `T`, but progresses the stream position.
 
 - `.rename(new_path: string)`

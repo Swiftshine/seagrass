@@ -3,8 +3,8 @@
 ## Output
 
 - `sg::set_byte_order(byte_order: string)`
-    - Used when serializing data types or values that cannot have a data type annotated with the `#[byte_order(...)]` attribute.
-    - `byte_order` must be `"big"` or `"little"`
+  - Used when serializing data types or values that cannot have a data type annotated with the `#[byte_order(...)]` attribute.
+  - `byte_order` must be `"big"` or `"little"`
 
 ```rs
 sg::set_byte_order("big");
@@ -13,7 +13,7 @@ sg::set_byte_order("little");
 ```
 
 - `sg::print<auto T>(printable: T)`
-    - Used when printing a single value to the console. The data type is also displayed.
+  - Used when printing a single value to the console. The data type is also displayed.
 
 ```rs
 sg::print("Hello, world!");
@@ -22,7 +22,10 @@ sg::print(123);
 
 ## Filesystem
 
-- `sg::read<T>(filename: string)` where `T` is a serializable data type.
+- `sg::open_file(filepath: string) -> sg::FileHandle`
+  - Creates an already opened file handle.
+
+- `sg::read<T>(filename: string) -> T` where `T` is a serializable data type.
 
 ```rs
 let value = sg::read<SerializableStructType>("input.bin");
