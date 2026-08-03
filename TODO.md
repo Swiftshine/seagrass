@@ -13,8 +13,6 @@ utility functions perhaps
 
 make file/io function tests (make them return a vec instead of a runtime value)
 
-reading raw bytes
-
 byte streams
 
 hex dumps
@@ -22,5 +20,7 @@ hex dumps
 string formatting function (like format!(...))
 
 filesystem functions
+
+- iterate on directories
 
 assertions
