@@ -42,7 +42,7 @@ Tags modify how the language, and certain elements, may be interpreted. Tags tha
 
 ### Structs
 
-Serializable structs must be marked as POD with the `#[pod]` attribute, as a promise that the struct has a stable memory layout.
+Serializable structs must be marked as POD with the `#[pod]` attribute, as a promise that the struct has a stable memory layout **upon serialization**.
 
 ```rs
 // this one cannot be serialized
