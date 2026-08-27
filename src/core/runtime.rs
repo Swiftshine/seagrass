@@ -259,11 +259,6 @@ pub struct Runtime {
     serialization_target: Option<SerializationTarget>,
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn say_hello() { // remove this later
-    println!("Hello from Rust!");
-}
-
 impl Runtime {
     pub fn new(base_dir: PathBuf) -> Self {
         Self {
@@ -425,5 +420,9 @@ impl Runtime {
         &self,
     ) -> &HashMap<BuiltinMethodTarget, HashMap<String, NativeFunction>> {
         &self.builtin_methods
+    }
+
+    pub fn base_dir(&self) -> &PathBuf {
+        &self.base_dir
     }
 }
