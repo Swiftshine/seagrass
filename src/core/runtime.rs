@@ -1,4 +1,5 @@
 pub(crate) mod accessors;
+pub(crate) mod aque;
 pub(crate) mod arrays;
 pub(crate) mod evaluation;
 pub(crate) mod execution;
@@ -22,6 +23,7 @@ use crate::core::{
     lang::ast::{AssignmentTarget, FunctionDefinition, Parameter, StructDefinition, StructImpl},
     native::BuiltinMethodTarget,
     runtime::{
+        aque::SerializationTarget,
         functions::{FunctionFrame, NativeFunction, RuntimeFunction},
         scopes::{RuntimeScope, RuntimeScopeType},
         serialization::ByteOrder,
@@ -196,6 +198,10 @@ pub enum RuntimeError {
     )]
     CountedByFail(String),
 
+    // Aque specific errors
+    #[error("No serialization target set")]
+    NoSerializationTarget,
+
     // Misc. native errors
     #[error("Native struct error: {0}")]
     NativeError(&'static str),
@@ -250,6 +256,7 @@ pub struct Runtime {
     byte_order: ByteOrder,
     base_dir: PathBuf,
     loaded_files: HashSet<PathBuf>,
+    serialization_target: Option<SerializationTarget>,
 }
 
 impl Runtime {
@@ -267,6 +274,7 @@ impl Runtime {
             builtin_methods: HashMap::new(),
             base_dir,
             loaded_files: HashSet::new(),
+            serialization_target: None,
         }
     }
 

@@ -9,6 +9,7 @@ use crate::core::{
     },
 };
 
+pub mod aque;
 pub mod builtin;
 pub mod fs;
 pub mod nativeobject;
@@ -88,6 +89,15 @@ impl Runtime {
             ("sg::write", fs::sg::write),
             ("sg::read", fs::sg::read),
             ("sg::open_file", fs::sg::open_file),
+            (
+                "sg::create_serialization_target",
+                aque::sg::create_serialization_target,
+            ),
+            (
+                "sg::destroy_serialization_target",
+                aque::sg::destroy_serialization_target,
+            ),
+            ("sg::serialize_to_target", aque::sg::serialize_to_target),
         ];
 
         for (identifier, func) in pairs {
