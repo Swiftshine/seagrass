@@ -1,6 +1,7 @@
+mod core;
 use anyhow::Result;
-use seagrass::core::lang;
-use seagrass::core::runtime::{Runtime, RuntimeConfigOption};
+use crate::core::lang;
+use crate::core::runtime::{Runtime, RuntimeConfigOption};
 use std::fs;
 use std::path::Path;
 
