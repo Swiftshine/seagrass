@@ -1,5 +1,5 @@
 use crate::core::lang;
-use crate::core::runtime::{Runtime, RuntimeError, RuntimeResult};
+use crate::core::runtime::Runtime;
 use std::ffi::CStr;
 use std::fs;
 use std::os::raw::c_char;
@@ -44,50 +44,39 @@ pub extern "C" fn sg_execute_runtime(runtime: *mut Runtime) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn sg_get_serialized_result(runtime: *mut Runtime) -> *const u8 {
+pub extern "C" fn sg_get_serialized_bytes(
+    runtime: *mut Runtime,
+    target_name: *const c_char,
+) -> *const u8 {
     assert!(!runtime.is_null());
 
-    let target = unsafe { (*runtime).get_serialization_target_mut().unwrap() };
+    let target = unsafe {
+        (*runtime).get_serialization_target(&CStr::from_ptr(target_name).to_str().unwrap())
+    };
 
-    target.data.as_ptr()
+    target.as_ptr()
 }
 
-#[derive(Debug)]
-pub struct SerializationTarget {
-    pub data: Vec<u8>,
-}
+#[unsafe(no_mangle)]
+pub extern "C" fn sg_get_serialized_size(
+    runtime: *mut Runtime,
+    target_name: *const c_char,
+) -> usize {
+    assert!(!runtime.is_null());
 
-impl SerializationTarget {
-    fn new() -> Self {
-        Self { data: Vec::new() }
-    }
+    let target = unsafe {
+        (*runtime).get_serialization_target(&CStr::from_ptr(target_name).to_str().unwrap())
+    };
 
-    fn data(&self) -> &[u8] {
-        &self.data
-    }
-
-    fn len(&self) -> usize {
-        self.data.len()
-    }
+    target.len()
 }
 
 impl Runtime {
-    pub fn create_serialization_target(&mut self) {
-        self.destroy_serialization_target();
-        self.serialization_target = Some(SerializationTarget::new())
-    }
-
-    pub fn destroy_serialization_target(&mut self) {
-        self.serialization_target = None;
-    }
-
-    pub fn has_serialization_target(&self) -> bool {
-        self.serialization_target.is_some()
-    }
-
-    pub fn get_serialization_target_mut(&mut self) -> RuntimeResult<&mut SerializationTarget> {
-        self.serialization_target
-            .as_mut()
-            .ok_or(RuntimeError::NoSerializationTarget)
+    pub fn get_serialization_target(&mut self, target_name: &str) -> &mut Vec<u8> {
+        let target = self
+            .serialization_targets
+            .entry(target_name.to_string())
+            .or_default();
+        target
     }
 }
